@@ -22,7 +22,11 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
+        // Marketing homepage at /
         main: resolve(__dirname, 'index.html'),
+        // BookWizard / Workspace app at /app.html
+        app: resolve(__dirname, 'app.html'),
+        // Brand kit visual smoke test at /brand-sample.html
         brandSample: resolve(__dirname, 'brand-sample.html'),
       },
     },
