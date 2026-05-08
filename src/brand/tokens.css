@@ -1,0 +1,240 @@
+/* ============================================================
+   Rooted & Revitalized — Brand Tokens
+   Ported verbatim from the Rooted & Revitalized design system
+   (colors_and_type.css). Earthy, botanical, slow-living palette.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Pinyon+Script&family=Allura&family=Dancing+Script:wght@400;500;600;700&family=Parisienne&family=Petit+Formal+Script&family=Yellowtail&family=Sacramento&family=Italianno&family=Nunito+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+:root {
+  /* ---------- PALETTE ---------- */
+  /* Foliage — primary botanical greens */
+  --rr-sage-50:  #f3f1e7;
+  --rr-sage-100: #e6e5d2;
+  --rr-sage-200: #c9ccb0;
+  --rr-sage-300: #a7aa89;
+  --rr-sage-400: #818664;
+  --rr-sage-500: #5c6148;
+  --rr-sage-600: #434731;
+  --rr-sage-700: #32361f;
+
+  /* Paper — warm cream ground */
+  --rr-cream-50:  #fbf8ef;
+  --rr-cream-100: #f6f1e1;
+  --rr-cream-200: #ede6d0;
+  --rr-cream-300: #dcd3b8;
+
+  /* Terracotta — accent from clay pots, candles */
+  --rr-clay-100: #e8d5c4;
+  --rr-clay-300: #c4a48a;
+  --rr-clay-500: #8f6d54;
+
+  /* Ink — text & strokes (never pure black) */
+  --rr-ink-900: #2d2a20;
+  --rr-ink-700: #4a4638;
+  --rr-ink-500: #6e6a5a;
+  --rr-ink-300: #a29c89;
+  --rr-ink-100: #cfc9b4;
+
+  /* Signal / semantic — gentle, never alarming */
+  --rr-signal-bloom: #b07a8a;
+  --rr-signal-leaf:  #6b8a52;
+  --rr-signal-honey: #c89a4a;
+  --rr-signal-rust:  #a35a3f;
+
+  /* ---------- SEMANTIC COLORS ---------- */
+  --rr-bg:          var(--rr-cream-100);
+  --rr-bg-elevated: var(--rr-cream-50);
+  --rr-bg-muted:    var(--rr-cream-200);
+  --rr-bg-band:     var(--rr-sage-500);
+  --rr-bg-wash:     var(--rr-sage-200);
+
+  --rr-fg:         var(--rr-sage-600);
+  --rr-fg-body:    var(--rr-ink-700);
+  --rr-fg-muted:   var(--rr-ink-500);
+  --rr-fg-subtle:  var(--rr-ink-300);
+  --rr-fg-on-dark: var(--rr-cream-50);
+
+  --rr-border:        var(--rr-ink-100);
+  --rr-border-strong: var(--rr-sage-300);
+  --rr-divider:       var(--rr-sage-400);
+
+  --rr-accent:      var(--rr-sage-600);
+  --rr-accent-soft: var(--rr-sage-200);
+  --rr-accent-warm: var(--rr-clay-500);
+
+  /* ---------- TYPE FAMILIES ---------- */
+  --rr-font-display: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+  --rr-font-script:  'Dancing Script', 'Pinyon Script', 'Allura', 'Brush Script MT', cursive;
+  --rr-font-label:   'Cormorant Garamond', Georgia, serif;
+  --rr-font-body:    'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ---------- TYPE TOKENS ---------- */
+  --rr-fs-hero:    clamp(56px, 8vw, 120px);
+  --rr-fs-display: clamp(40px, 5vw, 72px);
+  --rr-fs-h1:      clamp(32px, 3.6vw, 48px);
+  --rr-fs-h2:      28px;
+  --rr-fs-h3:      22px;
+  --rr-fs-lead:    18px;
+  --rr-fs-body:    16px;
+  --rr-fs-small:   14px;
+  --rr-fs-label:   13px;
+  --rr-fs-micro:   11px;
+
+  --rr-lh-tight:   1.05;
+  --rr-lh-snug:    1.25;
+  --rr-lh-normal:  1.55;
+  --rr-lh-relaxed: 1.75;
+
+  --rr-tracking-tight:   -0.01em;
+  --rr-tracking-normal:  0;
+  --rr-tracking-wide:    0.08em;
+  --rr-tracking-wider:   0.18em;
+  --rr-tracking-widest:  0.28em;
+
+  /* ---------- SPACING / GEOMETRY ---------- */
+  --rr-space-1: 4px;
+  --rr-space-2: 8px;
+  --rr-space-3: 12px;
+  --rr-space-4: 16px;
+  --rr-space-5: 24px;
+  --rr-space-6: 32px;
+  --rr-space-7: 48px;
+  --rr-space-8: 64px;
+  --rr-space-9: 96px;
+
+  --rr-radius-sm:   4px;
+  --rr-radius-md:   10px;
+  --rr-radius-lg:   18px;
+  --rr-radius-pill: 999px;
+
+  --rr-border-hair: 1px solid var(--rr-border);
+  --rr-border-ink:  1px solid var(--rr-sage-600);
+
+  /* ---------- SHADOWS — soft, paper-like ---------- */
+  --rr-shadow-sm:    0 1px 2px rgba(67, 71, 49, 0.06);
+  --rr-shadow-md:    0 4px 14px rgba(67, 71, 49, 0.09), 0 1px 2px rgba(67, 71, 49, 0.05);
+  --rr-shadow-lg:    0 18px 40px rgba(67, 71, 49, 0.12), 0 2px 6px rgba(67, 71, 49, 0.06);
+  --rr-shadow-paper: 0 1px 0 rgba(255,255,255,.5) inset, 0 8px 24px rgba(50, 54, 31, 0.08);
+
+  /* ---------- MOTION ---------- */
+  --rr-ease-out:    cubic-bezier(.2,.7,.2,1);
+  --rr-ease-in-out: cubic-bezier(.55,.08,.25,1);
+  --rr-dur-fast:    160ms;
+  --rr-dur-med:     260ms;
+  --rr-dur-slow:    520ms;
+}
+
+/* ============================================================
+   Scoped utility classes — only active inside elements that opt
+   in via class="rr". Lets the Rooted & Revitalized brand coexist
+   with the existing Canvas Studio styling without colliding.
+   ============================================================ */
+
+.rr {
+  color: var(--rr-fg-body);
+  background: var(--rr-bg);
+  font-family: var(--rr-font-body);
+  font-size: var(--rr-fs-body);
+  line-height: var(--rr-lh-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+.rr .rr-hero-serif {
+  font-family: var(--rr-font-display);
+  font-weight: 600;
+  font-size: var(--rr-fs-hero);
+  line-height: var(--rr-lh-tight);
+  letter-spacing: var(--rr-tracking-tight);
+  color: var(--rr-sage-600);
+  text-transform: uppercase;
+}
+
+.rr .rr-hero-script {
+  font-family: var(--rr-font-script);
+  font-weight: 400;
+  font-size: calc(var(--rr-fs-hero) * 0.95);
+  line-height: 1.1;
+  color: var(--rr-sage-600);
+  font-style: normal;
+  text-transform: none;
+}
+
+.rr .rr-h1 {
+  font-family: var(--rr-font-display);
+  font-weight: 600;
+  font-size: var(--rr-fs-h1);
+  line-height: var(--rr-lh-tight);
+  color: var(--rr-sage-600);
+  letter-spacing: var(--rr-tracking-tight);
+}
+
+.rr .rr-h2 {
+  font-family: var(--rr-font-display);
+  font-weight: 500;
+  font-size: var(--rr-fs-h2);
+  line-height: var(--rr-lh-snug);
+  color: var(--rr-sage-600);
+}
+
+.rr .rr-h3 {
+  font-family: var(--rr-font-display);
+  font-weight: 500;
+  font-size: var(--rr-fs-h3);
+  line-height: var(--rr-lh-snug);
+  color: var(--rr-sage-600);
+}
+
+.rr .rr-eyebrow {
+  font-family: var(--rr-font-label);
+  font-weight: 500;
+  font-size: var(--rr-fs-label);
+  text-transform: uppercase;
+  letter-spacing: var(--rr-tracking-widest);
+  color: var(--rr-sage-500);
+}
+
+.rr .rr-label {
+  font-family: var(--rr-font-body);
+  font-weight: 600;
+  font-size: var(--rr-fs-label);
+  text-transform: uppercase;
+  letter-spacing: var(--rr-tracking-wider);
+  color: var(--rr-sage-600);
+}
+
+.rr .rr-lead {
+  font-size: var(--rr-fs-lead);
+  line-height: var(--rr-lh-relaxed);
+  color: var(--rr-fg-body);
+  font-weight: 400;
+}
+
+.rr .rr-script-accent {
+  font-family: var(--rr-font-script);
+  color: var(--rr-sage-600);
+  font-size: 1.4em;
+  line-height: 1;
+}
+
+.rr .rr-meta {
+  font-size: var(--rr-fs-small);
+  color: var(--rr-fg-subtle);
+  font-style: italic;
+}
+
+/* Divider with center floret */
+.rr .rr-divider-sprig {
+  display: flex;
+  align-items: center;
+  gap: var(--rr-space-3);
+  color: var(--rr-sage-400);
+  font-size: 18px;
+}
+.rr .rr-divider-sprig::before,
+.rr .rr-divider-sprig::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rr-sage-400);
+}
