@@ -8,6 +8,11 @@ Fallback chain:
     generate_image:  ComfyUI → Diffusers → placeholder
     image_edit:      ComfyUI img2img → Diffusers img2img → generate_image fallback
 
+Multiple reference photos:
+    All photos are tiled into a reference grid via _composite_references() and
+    sent as a single img2img input so every photo contributes to generation.
+    There is no cap on the number of reference photos.
+
 Invariants (per SPEC.md):
     generate_image always returns a string data URL, never None, never raises.
     input_fidelity 'high' → denoise=0.35 (faithful), 'low' → denoise=0.75 (creative).
@@ -23,6 +28,7 @@ import colorsys
 import hashlib
 import io
 import logging
+import math
 import os
 import random
 import uuid
@@ -93,6 +99,46 @@ def _make_placeholder(label: str) -> str:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAA"
             "AAYAAjCB0C8AAAAASUVORK5CYII="
         )
+
+
+def _composite_references(urls: list[str]) -> str:
+    """Tile all reference photos into a square grid, return as a single data URL.
+
+    Ensures every uploaded photo contributes to img2img generation rather than
+    only using the first image. Grid cells are 512x512; layout is square-ish.
+    """
+    from PIL import Image as PilImage
+
+    images: list[PilImage.Image] = []
+    for url in urls:
+        if not url.startswith("data:image/"):
+            continue
+        try:
+            _, b64 = url.split(",", 1)
+            img = PilImage.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
+            images.append(img)
+        except Exception:
+            continue
+
+    if not images:
+        raise ValueError("No valid images to composite")
+
+    if len(images) == 1:
+        buf = io.BytesIO()
+        images[0].save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    thumb = 512
+    cols = math.ceil(math.sqrt(len(images)))
+    rows = math.ceil(len(images) / cols)
+    grid = PilImage.new("RGB", (cols * thumb, rows * thumb), (32, 32, 32))
+    for i, img in enumerate(images):
+        resized = img.resize((thumb, thumb), PilImage.LANCZOS)
+        grid.paste(resized, ((i % cols) * thumb, (i // cols) * thumb))
+
+    buf = io.BytesIO()
+    grid.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 # ── ComfyUI helpers ───────────────────────────────────────────────────
@@ -319,27 +365,34 @@ async def image_edit(
     quality: str = "medium",
     input_fidelity: str = "high",
 ) -> str:
-    """ComfyUI img2img → Diffusers img2img → generate_image fallback.
+    """Composite all reference photos into a grid, then ComfyUI img2img →
+    Diffusers img2img → generate_image fallback.
 
+    All reference photos contribute — no cap, no silent drops.
     input_fidelity: 'high' (faithful, denoise=0.35) or 'low' (creative, denoise=0.75).
-    Uses the first image in the list as the img2img reference.
     """
     urls = [image_data_urls] if isinstance(image_data_urls, str) else list(image_data_urls)
     if not urls:
         return await generate_image(prompt, size, quality)
 
-    first = urls[0]
+    # Composite all reference photos into one grid image
+    try:
+        ref_image = _composite_references(urls)
+    except Exception as exc:
+        logger.warning("[image_provider] Reference compositing failed (%s); using first image", exc)
+        ref_image = urls[0]
+
     denoise = _fidelity_to_denoise(input_fidelity)
     errors: list[str] = []
 
     try:
-        return await comfyui_img2img(first, prompt, size, quality, denoise)
+        return await comfyui_img2img(ref_image, prompt, size, quality, denoise)
     except Exception as exc:
         errors.append(f"ComfyUI: {type(exc).__name__}")
         logger.warning("[image_provider] ComfyUI img2img failed: %s", exc)
 
     try:
-        return await diffusers_img2img(first, prompt, size, quality, denoise)
+        return await diffusers_img2img(ref_image, prompt, size, quality, denoise)
     except Exception as exc:
         errors.append(f"Diffusers: {type(exc).__name__}")
         logger.warning("[image_provider] Diffusers img2img failed: %s", exc)

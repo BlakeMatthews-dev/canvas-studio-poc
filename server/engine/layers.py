@@ -4,7 +4,6 @@ Self-contained — only imports from .types (no maistro-core, no external
 maistro-canvas package).
 
 POC modifications vs maistro_canvas/layers.py:
-  - ChildProfile.likeness_refs capped at 5 (SPEC invariant photo_count_capped_at_5)
   - AssetInstance.history mirrors the per-layer version history from SPEC
   - No dependency on maistro.types.errors — base class is local EngineError
 """
@@ -15,12 +14,12 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Literal
 
-from .types import LayerType, EngineError, _MAX_REFERENCE_PHOTOS
+from .types import LayerType, EngineError
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # Enums
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 
 
 class LayerKind(StrEnum):
@@ -60,9 +59,9 @@ def layer_type_to_kind(layer_type: str) -> LayerKind:
         raise ValueError(msg) from exc
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # Geometry value objects
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
@@ -126,9 +125,9 @@ class BackgroundComposition:
     foreground: str | None = None
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # Pose geometry, discriminated by kind (ADR-039 §8)
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
@@ -162,9 +161,9 @@ POSE_GEOMETRY_FOR_KIND: dict[LayerKind, type] = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # Personalisation (ADR-039 §5)
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 
 
 PersonalizationKind = Literal[
@@ -191,8 +190,8 @@ class ChildProfile:
     """Personalisation key for a book render.
 
     likeness_refs holds data URLs or file paths for reference photos.
-    Capped at _MAX_REFERENCE_PHOTOS (5) per SPEC invariant
-    photo_count_capped_at_5.
+    No cap on count — all photos are composited into a reference grid
+    before being sent to the image backend.
 
     accommodations: fidget, headphones, AAC tablet, comfort objects.
     """
@@ -205,18 +204,10 @@ class ChildProfile:
     age_range: str | None = None
     reading_level: str | None = None
 
-    def __post_init__(self) -> None:
-        if len(self.likeness_refs) > _MAX_REFERENCE_PHOTOS:
-            object.__setattr__(
-                self,
-                "likeness_refs",
-                self.likeness_refs[:_MAX_REFERENCE_PHOTOS],
-            )
 
-
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # Asset model — definition / instance split with inline support
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
@@ -283,9 +274,9 @@ class AssetInstance:
     z_index: int = 0
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # World style + render style + style volumes (ADR-039 §6)
-# ─────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
