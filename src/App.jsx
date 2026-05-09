@@ -49,7 +49,7 @@ export default function App() {
   if (view === "loading") {
     return (
       <div className="app-shell">
-        <div className="topbar"><a href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>CANVAS STUDIO</a><div className="spacer" /></div>
+        <div className="topbar"><a href="/" className="logo" style={{ textDecoration: "none" }}>CANVAS STUDIO</a><div className="spacer" /></div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ color: "var(--text-dim)", fontSize: 13 }}>Loading...</div>
         </div>
@@ -61,7 +61,7 @@ export default function App() {
   if (view === "landing" && !bookSpec) {
     return (
       <div className="app-shell">
-        <div className="topbar"><a href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>CANVAS STUDIO</a><div className="spacer" /><button onClick={startNew}>New Book</button></div>
+        <div className="topbar"><a href="/" className="logo" style={{ textDecoration: "none" }}>CANVAS STUDIO</a><div className="spacer" /><button onClick={startNew}>New Book</button></div>
         <div style={{ flex: 1, overflow: "auto", padding: 32, maxWidth: 800, margin: "0 auto", width: "100%" }}>
           <h2 style={{ color: "var(--text)", fontSize: 20, marginBottom: 4 }}>Your Books</h2>
           <p style={{ color: "var(--text-dim)", fontSize: 13, marginBottom: 24 }}>Pick up where you left off, or start something new.</p>
@@ -93,7 +93,7 @@ export default function App() {
     return (
       <div className="app-shell">
         <div className="topbar">
-          <a href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>CANVAS STUDIO</a>
+          <a href="/" className="logo" style={{ textDecoration: "none" }}>CANVAS STUDIO</a>
           <span className="breadcrumb">&gt; {bookSpec.title || bookSpec.premise?.slice(0, 40) + "..."}</span>
           <div className="spacer" />
           <button onClick={resetToLanding}>My Books</button>
@@ -107,7 +107,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="topbar">
-        <a href="/" className="logo" style={{ textDecoration: "none", color: "inherit" }}>CANVAS STUDIO</a>
+        <a href="/" className="logo" style={{ textDecoration: "none" }}>CANVAS STUDIO</a>
         <div className="spacer" />
         {savedBooks.length > 0 && <button onClick={() => setView("landing")}>My Books ({savedBooks.length})</button>}
       </div>
