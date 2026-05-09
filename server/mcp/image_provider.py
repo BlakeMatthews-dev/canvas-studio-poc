@@ -8,7 +8,7 @@ import logging
 from PIL import Image
 
 from engine.image_provider import (
-    azure_image_edit as _async_edit,
+    image_edit as _async_edit,
     generate_image as _async_generate,
     render_layer_draft,
     render_layer_final,

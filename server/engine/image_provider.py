@@ -1,76 +1,64 @@
-"""SPEC-compliant image provider — Azure / Gemini / placeholder fallback chain.
+"""Image provider — ComfyUI (primary) + Diffusers API (fallback) + placeholder.
 
-Per SPEC.md §Azure deployment chain:
-    Deployments tried in order:
-        1. gpt-image-1-5   api-version=2025-04-01-preview  (primary)
-        2. gpt-image-2-1   api-version=2025-03-01-preview  (fallback)
-    404 / 400 on a deployment → skip to the next.
-    429 on a deployment → skip, accumulate error.
-    Timeout or 5xx → raise immediately.
+Architecture:
+    ComfyUI at COMFYUI_URL (default: http://localhost:8188)
+    Diffusers API at DIFFUSERS_URL (default: http://localhost:7860, A1111-compatible)
 
-Per SPEC.md §input_fidelity:
-    input_fidelity is ALWAYS sent as 'high' or 'low', never a float.
-    float >= 0.7 → 'high'; float < 0.7 → 'low'.
+Fallback chain:
+    generate_image:  ComfyUI → Diffusers → placeholder
+    image_edit:      ComfyUI img2img → Diffusers img2img → generate_image fallback
 
-Per SPEC.md §Invariants:
-    generate_image always returns a string (data URL or placeholder),
-    never None, never raises to callers.
-
-    No base64 image data is ever written to logs.
-
-All generation calls have a 180-second timeout.
+Invariants (per SPEC.md):
+    generate_image always returns a string data URL, never None, never raises.
+    input_fidelity 'high' → denoise=0.35 (faithful), 'low' → denoise=0.75 (creative).
+    All generation calls have 180s timeout.
+    No base64 image data written to logs.
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import colorsys
 import hashlib
 import io
 import logging
 import os
+import random
+import uuid
 from typing import Literal
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────────────────
-# Config
-# ─────────────────────────────────────────────────────────────────────
+# ── Config ────────────────────────────────────────────────────────────
 
-AZURE_KEY = os.environ.get("AZURE_OPENAI_API_KEY", "")
-AZURE_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-
-# Deployment chain per SPEC: (deployment_name, api_version)
-AZURE_DEPLOYMENTS: list[tuple[str, str]] = [
-    ("gpt-image-1-5", "2025-04-01-preview"),
-    ("gpt-image-2-1", "2025-03-01-preview"),
-]
-
-TIMEOUT = 180.0  # seconds — all generation calls per SPEC
+COMFYUI_URL = os.environ.get("COMFYUI_URL", "http://localhost:8188")
+COMFYUI_MODEL = os.environ.get("COMFYUI_MODEL", "sd_xl_base_1.0.safetensors")
+DIFFUSERS_URL = os.environ.get("DIFFUSERS_URL", "http://localhost:7860")
+TIMEOUT = 180.0
+_NEGATIVE = "ugly, blurry, low quality, bad anatomy, watermark, text, logo"
 
 InputFidelity = Literal["high", "low"]
 
 
-def _fidelity_string(input_fidelity: float) -> InputFidelity:
-    """Map float fidelity to the string Azure accepts. Per SPEC: >= 0.7 → 'high'."""
-    return "high" if input_fidelity >= 0.7 else "low"
+def _fidelity_to_denoise(fidelity: str) -> float:
+    """'high' → 0.35 (faithful to input); 'low' → 0.75 (creative)."""
+    return 0.35 if fidelity == "high" else 0.75
 
 
-def _data_url_to_bytes(data_url: str) -> tuple[bytes, str] | None:
-    """Extract (raw_bytes, mime_type) from a data URL. None if invalid or non-image."""
-    if not data_url.startswith("data:"):
-        return None
+def _parse_size(size: str) -> tuple[int, int]:
+    """Parse '1024x1024' → (1024, 1024)."""
     try:
-        header, b64 = data_url.split(",", 1)
-        mime = header.split(";")[0].removeprefix("data:")
-        if not mime.startswith("image/"):
-            return None
-        return base64.b64decode(b64), mime
+        w, h = size.lower().split("x")
+        return int(w), int(h)
     except Exception:
-        return None
+        return 1024, 1024
+
+
+def _quality_to_steps(quality: str) -> int:
+    return {"low": 12, "medium": 20, "high": 28}.get(quality, 20)
 
 
 def _make_placeholder(label: str) -> str:
@@ -100,7 +88,6 @@ def _make_placeholder(label: str) -> str:
         img.save(buf, format="PNG")
         return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
     except Exception:
-        # Minimal 1x1 transparent PNG fallback
         return (
             "data:image/png;base64,"
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAA"
@@ -108,188 +95,201 @@ def _make_placeholder(label: str) -> str:
         )
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Azure image generation
-# ─────────────────────────────────────────────────────────────────────
+# ── ComfyUI helpers ───────────────────────────────────────────────────
 
 
-async def azure_image_gen(
+def _build_t2i_workflow(prompt: str, width: int, height: int, steps: int) -> dict:
+    return {
+        "4": {"inputs": {"ckpt_name": COMFYUI_MODEL}, "class_type": "CheckpointLoaderSimple"},
+        "5": {"inputs": {"width": width, "height": height, "batch_size": 1}, "class_type": "EmptyLatentImage"},
+        "6": {"inputs": {"text": prompt, "clip": ["4", 1]}, "class_type": "CLIPTextEncode"},
+        "7": {"inputs": {"text": _NEGATIVE, "clip": ["4", 1]}, "class_type": "CLIPTextEncode"},
+        "3": {
+            "inputs": {
+                "seed": random.randint(0, 2**32 - 1),
+                "steps": steps,
+                "cfg": 7.0,
+                "sampler_name": "euler",
+                "scheduler": "normal",
+                "denoise": 1.0,
+                "model": ["4", 0],
+                "positive": ["6", 0],
+                "negative": ["7", 0],
+                "latent_image": ["5", 0],
+            },
+            "class_type": "KSampler",
+        },
+        "8": {"inputs": {"samples": ["3", 0], "vae": ["4", 2]}, "class_type": "VAEDecode"},
+        "9": {"inputs": {"filename_prefix": "poc_", "images": ["8", 0]}, "class_type": "SaveImage"},
+    }
+
+
+def _build_i2i_workflow(
+    uploaded_filename: str, prompt: str, width: int, height: int, steps: int, denoise: float
+) -> dict:
+    return {
+        "4": {"inputs": {"ckpt_name": COMFYUI_MODEL}, "class_type": "CheckpointLoaderSimple"},
+        "10": {"inputs": {"image": uploaded_filename, "upload": "image"}, "class_type": "LoadImage"},
+        "11": {"inputs": {"pixels": ["10", 0], "vae": ["4", 2]}, "class_type": "VAEEncode"},
+        "6": {"inputs": {"text": prompt, "clip": ["4", 1]}, "class_type": "CLIPTextEncode"},
+        "7": {"inputs": {"text": _NEGATIVE, "clip": ["4", 1]}, "class_type": "CLIPTextEncode"},
+        "3": {
+            "inputs": {
+                "seed": random.randint(0, 2**32 - 1),
+                "steps": steps,
+                "cfg": 7.0,
+                "sampler_name": "euler",
+                "scheduler": "normal",
+                "denoise": denoise,
+                "model": ["4", 0],
+                "positive": ["6", 0],
+                "negative": ["7", 0],
+                "latent_image": ["11", 0],
+            },
+            "class_type": "KSampler",
+        },
+        "8": {"inputs": {"samples": ["3", 0], "vae": ["4", 2]}, "class_type": "VAEDecode"},
+        "9": {"inputs": {"filename_prefix": "poc_", "images": ["8", 0]}, "class_type": "SaveImage"},
+    }
+
+
+async def _comfyui_poll(client: httpx.AsyncClient, prompt_id: str) -> str:
+    """Poll /history/{prompt_id} until done; return first image as data URL."""
+    for _ in range(int(TIMEOUT)):
+        await asyncio.sleep(1)
+        history = await client.get(f"/history/{prompt_id}", timeout=10.0)
+        data = history.json()
+        if prompt_id not in data:
+            continue
+        for node_output in data[prompt_id].get("outputs", {}).values():
+            for img_meta in node_output.get("images", []):
+                img_resp = await client.get(
+                    "/view",
+                    params={
+                        "filename": img_meta["filename"],
+                        "subfolder": img_meta.get("subfolder", ""),
+                        "type": img_meta.get("type", "output"),
+                    },
+                    timeout=30.0,
+                )
+                img_resp.raise_for_status()
+                b64 = base64.b64encode(img_resp.content).decode()
+                return f"data:image/png;base64,{b64}"
+    raise TimeoutError("ComfyUI generation timed out")
+
+
+async def comfyui_text2img(
     prompt: str,
     size: str = "1024x1024",
     quality: str = "medium",
 ) -> str:
-    """Try each Azure deployment in order. Returns data URL on first success.
-
-    Per SPEC: skips on 404/400, raises on timeout, raises if all fail.
-    """
-    if not (AZURE_KEY and AZURE_ENDPOINT):
-        raise RuntimeError("Azure not configured")
-
-    errors: list[str] = []
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        for deployment, api_version in AZURE_DEPLOYMENTS:
-            url = (
-                f"{AZURE_ENDPOINT}/openai/deployments/{deployment}"
-                f"/images/generations?api-version={api_version}"
-            )
-            try:
-                resp = await client.post(
-                    url,
-                    headers={"Content-Type": "application/json", "api-key": AZURE_KEY},
-                    json={"prompt": prompt, "n": 1, "size": size, "quality": quality},
-                )
-                if resp.status_code in (404, 400):
-                    errors.append(f"{deployment}: HTTP {resp.status_code} (skip)")
-                    continue
-                resp.raise_for_status()
-                data = resp.json()
-                img = (data.get("data") or [{}])[0]
-                if img.get("b64_json"):
-                    return f"data:image/png;base64,{img['b64_json']}"
-                if img.get("url"):
-                    return img["url"]
-                raise RuntimeError("No image data in response")
-            except httpx.TimeoutException:
-                raise  # propagate — per SPEC §Generation times out after 180 seconds
-            except RuntimeError:
-                raise
-            except Exception as exc:
-                errors.append(f"{deployment}: {exc}")
-                continue
-
-    raise RuntimeError(f"All Azure deployments failed: {'; '.join(errors)}")
+    width, height = _parse_size(size)
+    steps = _quality_to_steps(quality)
+    workflow = _build_t2i_workflow(prompt, width, height, steps)
+    client_id = str(uuid.uuid4())
+    async with httpx.AsyncClient(base_url=COMFYUI_URL, timeout=TIMEOUT) as client:
+        resp = await client.post("/prompt", json={"prompt": workflow, "client_id": client_id})
+        resp.raise_for_status()
+        prompt_id = resp.json()["prompt_id"]
+        return await _comfyui_poll(client, prompt_id)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Azure image edit (multipart/form-data)
-# ─────────────────────────────────────────────────────────────────────
-
-
-async def azure_image_edit(
-    image_data_urls: list[str] | str,
+async def comfyui_img2img(
+    image_data_url: str,
     prompt: str,
     size: str = "1024x1024",
     quality: str = "medium",
-    input_fidelity: float = 0.8,
+    denoise: float = 0.35,
 ) -> str:
-    """Send a multipart/form-data edit request to Azure.
+    width, height = _parse_size(size)
+    steps = _quality_to_steps(quality)
 
-    Per SPEC:
-    - Accepts a single string or list of data URLs; all sent as image[]
-    - input_fidelity float >= 0.7 → 'high', < 0.7 → 'low' (never a float)
-    - Tries each deployment in AZURE_DEPLOYMENTS order
-    - Skips on 404/400; accumulates error on 429
-    - Raises 'All Azure edit deployments failed: ...' if all fail
-    """
-    if not (AZURE_KEY and AZURE_ENDPOINT):
-        raise RuntimeError("Azure not configured")
+    if not image_data_url.startswith("data:image/"):
+        raise ValueError("image_data_url must be a data URL")
+    _, b64 = image_data_url.split(",", 1)
+    img_bytes = base64.b64decode(b64)
+    ext = "png" if "png" in image_data_url[:30] else "jpg"
+    filename = f"poc_input_{uuid.uuid4().hex[:8]}.{ext}"
 
-    urls = [image_data_urls] if isinstance(image_data_urls, str) else list(image_data_urls)
-    blobs: list[tuple[bytes, str]] = []
-    for u in urls:
-        result = _data_url_to_bytes(u)
-        if result:
-            blobs.append(result)
+    async with httpx.AsyncClient(base_url=COMFYUI_URL, timeout=TIMEOUT) as client:
+        upload_resp = await client.post(
+            "/upload/image",
+            files={"image": (filename, img_bytes, f"image/{ext}")},
+            data={"overwrite": "true"},
+            timeout=30.0,
+        )
+        upload_resp.raise_for_status()
+        uploaded_name = upload_resp.json().get("name", filename)
 
-    if not blobs:
-        raise RuntimeError("No valid images for edit")
-
-    fidelity_str = _fidelity_string(input_fidelity)
-    errors: list[str] = []
-
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        for deployment, api_version in AZURE_DEPLOYMENTS:
-            url = (
-                f"{AZURE_ENDPOINT}/openai/deployments/{deployment}"
-                f"/images/edits?api-version={api_version}"
-            )
-            try:
-                files: list[tuple[str, tuple[str, bytes, str]]] = [
-                    ("image[]", (f"image.{'png' if 'png' in mime else 'jpg'}", raw, mime))
-                    for raw, mime in blobs
-                ]
-                data_fields = {
-                    "prompt": prompt,
-                    "size": size,
-                    "n": "1",
-                    "quality": quality,
-                    "input_fidelity": fidelity_str,
-                }
-
-                resp = await client.post(
-                    url,
-                    headers={"api-key": AZURE_KEY},
-                    files=files,
-                    data=data_fields,
-                )
-
-                if resp.status_code in (404, 400):
-                    errors.append(f"{deployment}: HTTP {resp.status_code} (skip)")
-                    continue
-                if resp.status_code == 429:
-                    body = resp.json().get("error", {}).get("message", "RateLimitReached")
-                    errors.append(f"RateLimitReached on {deployment}: {body}")
-                    continue
-
-                resp.raise_for_status()
-                result = resp.json()
-                img = (result.get("data") or [{}])[0]
-                if img.get("b64_json"):
-                    return f"data:image/png;base64,{img['b64_json']}"
-                if img.get("url"):
-                    return img["url"]
-                raise RuntimeError("No image data in edit response")
-
-            except httpx.TimeoutException:
-                raise
-            except RuntimeError:
-                raise
-            except Exception as exc:
-                errors.append(f"{deployment}: {exc}")
-                continue
-
-    raise RuntimeError(f"All Azure edit deployments failed: {'; '.join(errors)}")
+        workflow = _build_i2i_workflow(uploaded_name, prompt, width, height, steps, denoise)
+        client_id = str(uuid.uuid4())
+        resp = await client.post("/prompt", json={"prompt": workflow, "client_id": client_id})
+        resp.raise_for_status()
+        prompt_id = resp.json()["prompt_id"]
+        return await _comfyui_poll(client, prompt_id)
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Gemini fallback
-# ─────────────────────────────────────────────────────────────────────
+# ── Diffusers (A1111-compatible) fallback ─────────────────────────────
 
 
-async def gemini_image_gen(prompt: str) -> str:
-    """Gemini image generation fallback. Returns data URL."""
-    if not GEMINI_KEY:
-        raise RuntimeError("Gemini not configured")
-
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta"
-        "/models/gemini-2.5-flash-image:generateContent"
-    )
-    async with httpx.AsyncClient(timeout=120.0) as client:
+async def diffusers_text2img(
+    prompt: str,
+    size: str = "1024x1024",
+    quality: str = "medium",
+) -> str:
+    width, height = _parse_size(size)
+    steps = _quality_to_steps(quality)
+    async with httpx.AsyncClient(base_url=DIFFUSERS_URL, timeout=TIMEOUT) as client:
         resp = await client.post(
-            url,
-            params={"key": GEMINI_KEY},
-            headers={"Content-Type": "application/json"},
+            "/sdapi/v1/txt2img",
             json={
-                "contents": [{"parts": [{"text": f"Generate an image: {prompt}"}]}],
-                "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+                "prompt": prompt,
+                "negative_prompt": _NEGATIVE,
+                "width": width,
+                "height": height,
+                "steps": steps,
+                "cfg_scale": 7,
             },
         )
         resp.raise_for_status()
-        data = resp.json()
-        parts = (
-            data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        images = resp.json().get("images", [])
+        if images:
+            return f"data:image/png;base64,{images[0]}"
+    raise RuntimeError("Diffusers txt2img returned no images")
+
+
+async def diffusers_img2img(
+    image_data_url: str,
+    prompt: str,
+    size: str = "1024x1024",
+    quality: str = "medium",
+    denoising_strength: float = 0.35,
+) -> str:
+    width, height = _parse_size(size)
+    steps = _quality_to_steps(quality)
+    _, b64 = image_data_url.split(",", 1)
+    async with httpx.AsyncClient(base_url=DIFFUSERS_URL, timeout=TIMEOUT) as client:
+        resp = await client.post(
+            "/sdapi/v1/img2img",
+            json={
+                "prompt": prompt,
+                "negative_prompt": _NEGATIVE,
+                "init_images": [b64],
+                "denoising_strength": denoising_strength,
+                "width": width,
+                "height": height,
+                "steps": steps,
+                "cfg_scale": 7,
+            },
         )
-        for part in parts:
-            if "inlineData" in part:
-                inline = part["inlineData"]
-                return f"data:{inline['mimeType']};base64,{inline['data']}"
-    raise RuntimeError("No image from Gemini")
+        resp.raise_for_status()
+        images = resp.json().get("images", [])
+        if images:
+            return f"data:image/png;base64,{images[0]}"
+    raise RuntimeError("Diffusers img2img returned no images")
 
 
-# ─────────────────────────────────────────────────────────────────────
-# Public API — always returns a string, never raises
-# ─────────────────────────────────────────────────────────────────────
+# ── Public API ────────────────────────────────────────────────────────
 
 
 async def generate_image(
@@ -297,36 +297,68 @@ async def generate_image(
     size: str = "1024x1024",
     quality: str = "medium",
 ) -> str:
-    """Try Azure → Gemini → placeholder. Always returns a string data URL.
+    """ComfyUI → Diffusers → placeholder. Never raises, never returns None."""
+    try:
+        return await comfyui_text2img(prompt, size, quality)
+    except Exception as exc:
+        logger.warning("[image_provider] ComfyUI failed: %s", type(exc).__name__)
 
-    SPEC invariant generation_never_returns_null:
-        generate_image always returns a string (data URL or placeholder),
-        never None, never raises.
-    """
-    if AZURE_KEY and AZURE_ENDPOINT:
-        try:
-            return await azure_image_gen(prompt, size, quality)
-        except Exception as exc:
-            logger.warning("[image_provider] Azure failed: %s", type(exc).__name__)
+    try:
+        return await diffusers_text2img(prompt, size, quality)
+    except Exception as exc:
+        logger.warning("[image_provider] Diffusers failed: %s", type(exc).__name__)
 
-    if GEMINI_KEY:
-        try:
-            return await gemini_image_gen(prompt)
-        except Exception as exc:
-            logger.warning("[image_provider] Gemini failed: %s", type(exc).__name__)
-
-    logger.info("[image_provider] All providers failed; returning placeholder")
+    logger.info("[image_provider] All backends failed; returning placeholder")
     return _make_placeholder(prompt)
+
+
+async def image_edit(
+    image_data_urls: list[str] | str,
+    prompt: str,
+    size: str = "1024x1024",
+    quality: str = "medium",
+    input_fidelity: str = "high",
+) -> str:
+    """ComfyUI img2img → Diffusers img2img → generate_image fallback.
+
+    input_fidelity: 'high' (faithful, denoise=0.35) or 'low' (creative, denoise=0.75).
+    Uses the first image in the list as the img2img reference.
+    """
+    urls = [image_data_urls] if isinstance(image_data_urls, str) else list(image_data_urls)
+    if not urls:
+        return await generate_image(prompt, size, quality)
+
+    first = urls[0]
+    denoise = _fidelity_to_denoise(input_fidelity)
+    errors: list[str] = []
+
+    try:
+        return await comfyui_img2img(first, prompt, size, quality, denoise)
+    except Exception as exc:
+        errors.append(f"ComfyUI: {type(exc).__name__}")
+        logger.warning("[image_provider] ComfyUI img2img failed: %s", exc)
+
+    try:
+        return await diffusers_img2img(first, prompt, size, quality, denoise)
+    except Exception as exc:
+        errors.append(f"Diffusers: {type(exc).__name__}")
+        logger.warning("[image_provider] Diffusers img2img failed: %s", exc)
+
+    logger.warning(
+        "[image_provider] All edit backends failed (%s); falling back to text-only",
+        "; ".join(errors),
+    )
+    return await generate_image(prompt, size, quality)
 
 
 async def render_layer_draft(
     prompt: str,
     reference_image: str | None = None,
 ) -> str:
-    """Draft quality: 1024x1024, quality='low'. Per SPEC §renderLayerDraft."""
+    """Draft quality: 1024x1024, quality='low'."""
     if reference_image:
         try:
-            return await azure_image_edit(reference_image, prompt, "1024x1024", "low", 0.5)
+            return await image_edit(reference_image, prompt, "1024x1024", "low", "low")
         except Exception:
             pass
     return await generate_image(prompt, "1024x1024", "low")
@@ -336,23 +368,20 @@ async def render_layer_final(
     prompt: str,
     reference_image: str | None = None,
 ) -> str:
-    """Final quality: 1024x1024, quality='medium'. Per SPEC §renderLayerFinal."""
+    """Final quality: 1024x1024, quality='medium'."""
     if reference_image:
         upgrade_prompt = " ".join([
             "Enhance this illustration to higher quality.",
             "Keep the EXACT same composition, colors, pose, and layout.",
             "Add finer detail, smoother gradients, crisper edges, and better lighting.",
             "Do NOT change the subject, pose, or scene in any way.",
-            "This is a quality upgrade, not a new illustration.",
             prompt,
         ])
         try:
-            return await azure_image_edit(
-                reference_image, upgrade_prompt, "1024x1024", "medium", 0.9
-            )
+            return await image_edit(reference_image, upgrade_prompt, "1024x1024", "medium", "high")
         except Exception as exc:
             logger.warning(
-                "[image_provider] HQ edit failed (%s), regenerating from text...",
+                "[image_provider] HQ edit failed (%s), regenerating from text",
                 type(exc).__name__,
             )
     return await generate_image(prompt, "1024x1024", "medium")

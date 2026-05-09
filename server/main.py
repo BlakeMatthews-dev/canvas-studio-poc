@@ -11,16 +11,10 @@ Endpoints
   Generation       POST/GET /api/generation-attempts,
                    PATCH    /api/generation-attempts/{id}/verdict
   Layout versions  POST/GET /api/layout-versions
+  Image gen        POST     /api/generate/image
+  Image edit       POST     /api/generate/edit
   Lulu print       Proxy:    /api/print/* → LULU_SERVICE_URL
   Export           POST     /api/export → export_book.py (subprocess)
-
-Why this exists
-  The Express version (server.js) duplicated the engine's tooling
-  (Node + pg + cors). With ADR-039..043 the engine has typed canvas
-  routes; eventually the frontend will talk to those directly. This
-  cutover is the minimum-risk first step: same shape, fewer runtimes.
-  The /v2/canvas migration is a separate effort tracked under the
-  ADR-040..043 follow-ups.
 """
 
 from __future__ import annotations
@@ -59,8 +53,6 @@ _KEY_PATTERN = re.compile(r"[^a-zA-Z0-9_-]")
 
 
 def safe_key(key: str | None) -> str:
-    """Match the Express server's key sanitisation: replace non-
-    alphanumerics with `_` and clip to 80 chars."""
     return _KEY_PATTERN.sub("_", key or "untitled")[:80]
 
 
@@ -421,6 +413,42 @@ async def list_layout_versions(
     return [_isoize(r) for r in rows]
 
 
+# ── Image generation (ComfyUI + Diffusers backend) ────────────────────
+
+
+@app.post("/api/generate/image")
+async def api_generate_image(request: Request) -> dict[str, Any]:
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, {"error": "prompt required"})
+    from engine.image_provider import generate_image as _gen
+    data_url = await _gen(
+        prompt,
+        size=body.get("size", "1024x1024"),
+        quality=body.get("quality", "low"),
+    )
+    return {"data_url": data_url}
+
+
+@app.post("/api/generate/edit")
+async def api_generate_edit(request: Request) -> dict[str, Any]:
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    if not prompt:
+        raise HTTPException(400, {"error": "prompt required"})
+    image_data_urls = body.get("image_data_urls", [])
+    from engine.image_provider import image_edit as _edit
+    data_url = await _edit(
+        image_data_urls,
+        prompt,
+        size=body.get("size", "1024x1024"),
+        quality=body.get("quality", "medium"),
+        input_fidelity=body.get("input_fidelity", "high"),
+    )
+    return {"data_url": data_url}
+
+
 # ── Lulu Print-on-Demand proxy ────────────────────────────────────────
 
 
@@ -532,7 +560,7 @@ async def export_pdf(request: Request) -> Any:
         path=pdf_path,
         media_type="application/pdf",
         filename=f"{safe_title}_{pdf_name}",
-        background=None,  # tmp dir cleaned up by the OS
+        background=None,
     )
 
 
@@ -552,12 +580,10 @@ async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONR
 
 def _now_iso() -> str:
     from datetime import datetime, UTC
-
     return datetime.now(UTC).isoformat()
 
 
 def _isoize(row: dict[str, Any]) -> dict[str, Any]:
-    """Convert datetime fields to ISO strings for JSON output."""
     out = {}
     for k, v in row.items():
         if hasattr(v, "isoformat"):
@@ -572,5 +598,4 @@ def _isoize(row: dict[str, Any]) -> dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("server.main:app", host="0.0.0.0", port=PORT, reload=False)
