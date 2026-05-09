@@ -31,7 +31,7 @@ function Topbar() {
   return (
     <header className="topbar">
       <a href="#" className="mark">
-        <span>Canvas Studio</span>
+        <span>Main Character Crew</span>
         <span className="script">by</span>
         <span>Rooted &amp; Revitalized</span>
       </a>
@@ -69,7 +69,7 @@ function Hero() {
         <div>
           <div className="eyebrow-row">
             <span className="rule" />
-            <span className="eyebrow">A storybook studio for the people you love most</span>
+            <span className="eyebrow">Stories Made the Way You&rsquo;re Made.</span>
           </div>
           <h1>
             <span className="caps">A storybook,</span>
@@ -77,8 +77,8 @@ function Hero() {
             <span className="caps">your family memories.</span>
           </h1>
           <p className="lead">
-            Canvas Studio takes the pictures you already love and grows them
-            into a real, printed storybook, one page at a time. You stay
+            Main Character Crew takes the pictures you already love and grows
+            them into a real, printed storybook, one page at a time. You stay
             close the whole way, choosing the art and adding the small
             touches only you would think of. Your tale unfolds from a handful
             of cherished photographs, through a storyboard, into a book you
@@ -355,7 +355,7 @@ function ClosingBand() {
           already know by heart, and a look that feels like home. The rest
           grows quietly alongside you.
         </p>
-        <a href="/app.html" className="btn-primary">Open Canvas Studio</a>
+        <a href="/app.html" className="btn-primary">Open Main Character Crew</a>
       </div>
     </section>
   );
@@ -367,7 +367,7 @@ function Footer() {
       <div className="wrap">
         <div className="foot-inner">
           <div>
-            <div className="foot-mark">Canvas Studio</div>
+            <div className="foot-mark">Main Character Crew</div>
             <div className="foot-script">a Rooted &amp; Revitalized atelier</div>
             <p className="blurb">
               A small studio for slow, careful, family storybooks. Made with
@@ -409,7 +409,7 @@ function Footer() {
         </div>
 
         <div className="foot-bot">
-          <div>© 2026 Canvas Studio · Rooted &amp; Revitalized.</div>
+          <div>© 2026 Main Character Crew · Rooted &amp; Revitalized.</div>
           <div className="with-care">with care, with patience.</div>
         </div>
       </div>

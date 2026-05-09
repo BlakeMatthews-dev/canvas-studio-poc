@@ -31,7 +31,7 @@ function Topbar() {
   return (
     <header className="topbar">
       <a href="/" className="mark">
-        <span>Canvas Studio</span>
+        <span>Main Character Crew</span>
         <span className="script">by</span>
         <span>Rooted &amp; Revitalized</span>
       </a>
@@ -419,7 +419,7 @@ function Footer() {
       <div className="wrap">
         <div className="foot-inner">
           <div>
-            <div className="foot-mark">Canvas Studio</div>
+            <div className="foot-mark">Main Character Crew</div>
             <div className="foot-script">a Rooted &amp; Revitalized atelier</div>
             <p className="blurb">
               A small studio for slow, careful, family storybooks. Made with
@@ -460,7 +460,7 @@ function Footer() {
         </div>
 
         <div className="foot-bot">
-          <div>© 2026 Canvas Studio · Rooted &amp; Revitalized.</div>
+          <div>© 2026 Main Character Crew · Rooted &amp; Revitalized.</div>
           <div className="with-care">with care, with patience.</div>
         </div>
       </div>
