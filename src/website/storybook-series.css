@@ -1,0 +1,817 @@
+/* ============================================================
+   Storybook Series Website — page-specific styles
+   Sibling to website.css. Same approach: scope to
+   .storybook-series-website, alias the brand --rr-* tokens to the
+   unprefixed names the design source used.
+   ============================================================ */
+
+.storybook-series-website {
+  /* Token aliases */
+  --cream-50:  var(--rr-cream-50);
+  --cream-100: var(--rr-cream-100);
+  --cream-200: var(--rr-cream-200);
+  --cream-300: var(--rr-cream-300);
+
+  --sage-100: var(--rr-sage-100);
+  --sage-200: var(--rr-sage-200);
+  --sage-300: var(--rr-sage-300);
+  --sage-400: var(--rr-sage-400);
+  --sage-500: var(--rr-sage-500);
+  --sage-600: var(--rr-sage-600);
+  --sage-700: var(--rr-sage-700);
+
+  --clay-100: var(--rr-clay-100);
+  --clay-300: var(--rr-clay-300);
+  --clay-500: var(--rr-clay-500);
+
+  --ink-100: var(--rr-ink-100);
+  --ink-300: var(--rr-ink-300);
+  --ink-500: var(--rr-ink-500);
+  --ink-700: var(--rr-ink-700);
+  --ink-900: var(--rr-ink-900);
+
+  --fg-body: var(--rr-fg-body);
+
+  --space-3: var(--rr-space-3);
+  --space-4: var(--rr-space-4);
+  --space-5: var(--rr-space-5);
+  --space-6: var(--rr-space-6);
+  --space-7: var(--rr-space-7);
+  --space-8: var(--rr-space-8);
+  --space-9: var(--rr-space-9);
+
+  --radius-lg: var(--rr-radius-lg);
+  --shadow-sm:    var(--rr-shadow-sm);
+  --shadow-lg:    var(--rr-shadow-lg);
+  --shadow-paper: var(--rr-shadow-paper);
+
+  --tracking-wider:  var(--rr-tracking-wider);
+  --tracking-widest: var(--rr-tracking-widest);
+
+  --font-display: var(--rr-font-display);
+  --font-script:  var(--rr-font-script);
+  --font-body:    var(--rr-font-body);
+
+  --dur-fast: var(--rr-dur-fast);
+  --ease-out: var(--rr-ease-out);
+
+  background: var(--cream-100);
+  color: var(--fg-body);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.storybook-series-website *,
+.storybook-series-website *::before,
+.storybook-series-website *::after {
+  box-sizing: border-box;
+}
+
+.storybook-series-website .wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 var(--space-7);
+}
+
+/* ---- Top bar (matches Canvas Studio page) ---- */
+.storybook-series-website .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-7);
+  border-bottom: 1px solid var(--ink-100);
+  background: var(--cream-50);
+}
+.storybook-series-website .topbar .mark {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--sage-600);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-decoration: none;
+}
+.storybook-series-website .topbar .mark .script {
+  font-family: var(--font-script);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 22px;
+  line-height: 0;
+  color: var(--sage-500);
+}
+.storybook-series-website .nav {
+  display: flex;
+  gap: var(--space-6);
+}
+.storybook-series-website .nav a {
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--sage-600);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.storybook-series-website .nav a:hover { color: var(--clay-500); }
+.storybook-series-website .nav a.active {
+  color: var(--clay-500);
+  border-bottom: 1px solid var(--clay-500);
+  padding-bottom: 2px;
+}
+.storybook-series-website .topbar .cta {
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  font-weight: 600;
+  color: var(--cream-50);
+  background: var(--sage-600);
+  padding: 10px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.storybook-series-website .topbar .cta:hover { background: var(--sage-700); }
+
+/* ---- Hero ---- */
+.storybook-series-website .hero {
+  position: relative;
+  padding: var(--space-9) 0;
+  overflow: hidden;
+}
+.storybook-series-website .hero .wash {
+  position: absolute;
+  inset: auto -10% -20% -10%;
+  height: 60%;
+  background: radial-gradient(60% 70% at 50% 100%, var(--clay-100) 0%, transparent 70%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.storybook-series-website .hero-inner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: var(--space-9);
+  align-items: center;
+}
+
+.storybook-series-website .eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-5);
+}
+.storybook-series-website .eyebrow-row .rule {
+  height: 1px;
+  flex: 0 0 60px;
+  background: var(--clay-300);
+}
+.storybook-series-website .hero .eyebrow {
+  color: var(--clay-500);
+  font-family: var(--font-body);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  font-weight: 600;
+}
+
+.storybook-series-website .hero h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(44px, 5.6vw, 80px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--sage-700);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.04em;
+}
+.storybook-series-website .hero h1 .caps { text-transform: uppercase; }
+.storybook-series-website .hero h1 .script {
+  font-family: var(--font-script);
+  font-weight: 400;
+  color: var(--clay-500);
+  font-size: 1.35em;
+  line-height: 0.9;
+  margin: -0.08em 0 -0.06em -0.02em;
+  text-transform: none;
+}
+.storybook-series-website .hero .lead {
+  margin-top: var(--space-5);
+  max-width: 48ch;
+  font-size: 19px;
+  line-height: 1.65;
+  color: var(--ink-700);
+}
+.storybook-series-website .hero .meta-row {
+  margin-top: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+/* ---- Buttons (mirrors Canvas Studio Website) ---- */
+.storybook-series-website .btn-primary,
+.storybook-series-website .btn-ghost {
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  font-weight: 600;
+  padding: 14px 26px;
+  border-radius: 999px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  transition: all var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+}
+.storybook-series-website .btn-primary {
+  background: var(--sage-600);
+  color: var(--cream-50);
+  border: 1px solid var(--sage-600);
+}
+.storybook-series-website .btn-primary:hover {
+  background: var(--sage-700);
+  border-color: var(--sage-700);
+}
+.storybook-series-website .btn-ghost {
+  background: transparent;
+  color: var(--sage-600);
+  border: 1px solid var(--sage-500);
+}
+.storybook-series-website .btn-ghost:hover { background: var(--sage-100); }
+
+/* ---- Hero book stack ---- */
+.storybook-series-website .book-stack {
+  position: relative;
+  aspect-ratio: 4/5;
+}
+.storybook-series-website .book-stack .book {
+  position: absolute;
+  border-radius: 4px 10px 10px 4px;
+  background: var(--cream-50);
+  box-shadow: var(--shadow-paper), var(--rr-shadow-md);
+  border: 1px solid var(--ink-100);
+  overflow: hidden;
+}
+.storybook-series-website .book-stack .book .spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: linear-gradient(to right, rgba(50, 54, 31, 0.18), transparent 80%);
+  pointer-events: none;
+}
+.storybook-series-website .book-stack .b1 {
+  inset: 12% 14% 6% 4%;
+  transform: rotate(-3deg);
+  background: var(--sage-200);
+}
+.storybook-series-website .book-stack .b2 {
+  inset: 6% 4% 12% 14%;
+  transform: rotate(2deg);
+}
+.storybook-series-website .book-stack .b2 .placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 24px;
+  text-align: center;
+  padding: var(--space-5);
+}
+.storybook-series-website .book-stack .corner-spr {
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  pointer-events: none;
+}
+.storybook-series-website .book-stack .corner-spr.tl {
+  top: -14px;
+  left: -14px;
+  transform: rotate(-15deg);
+}
+.storybook-series-website .book-stack .corner-spr.br {
+  bottom: -14px;
+  right: -14px;
+  transform: rotate(165deg);
+}
+
+/* ---- Section base ---- */
+.storybook-series-website section.band { padding: var(--space-9) 0; }
+.storybook-series-website section.band.muted {
+  background: var(--cream-50);
+  border-top: 1px solid var(--ink-100);
+  border-bottom: 1px solid var(--ink-100);
+}
+.storybook-series-website section.band.dark {
+  background: var(--sage-600);
+  color: var(--cream-50);
+}
+.storybook-series-website section.band.dark h2 { color: var(--cream-50); }
+.storybook-series-website section.band.dark .eyebrow { color: var(--clay-300); }
+.storybook-series-website section.band.dark p { color: rgba(251, 248, 239, 0.82); }
+
+.storybook-series-website .section-head {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+.storybook-series-website .section-head .eyebrow {
+  color: var(--clay-500);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  font-weight: 600;
+}
+.storybook-series-website .section-head .eyebrow::before,
+.storybook-series-website .section-head .eyebrow::after {
+  content: '';
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+.storybook-series-website .section-head h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-size: clamp(36px, 4.4vw, 60px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  margin: var(--space-3) 0 0;
+  color: var(--sage-700);
+}
+.storybook-series-website .section-head h2 .script {
+  font-family: var(--font-script);
+  text-transform: none;
+  color: var(--clay-500);
+  font-size: 1.1em;
+  margin-left: 0.1em;
+}
+.storybook-series-website .section-head .sub {
+  margin: var(--space-4) auto 0;
+  max-width: 56ch;
+  font-size: 17px;
+  color: var(--ink-700);
+  line-height: 1.6;
+}
+
+/* ---- Difference cards (3 col) ---- */
+.storybook-series-website .diff-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+}
+.storybook-series-website .diff {
+  text-align: center;
+  padding: var(--space-7) var(--space-5) var(--space-6);
+}
+.storybook-series-website .diff .icon-wrap {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream-50);
+  border: 1px solid var(--sage-300);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}
+.storybook-series-website .diff h3 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-size: 22px;
+  color: var(--sage-700);
+  margin: 0 0 var(--space-3);
+}
+.storybook-series-website .diff h3 .script {
+  font-family: var(--font-script);
+  text-transform: none;
+  color: var(--clay-500);
+  font-size: 1.1em;
+  margin-left: 0.15em;
+}
+.storybook-series-website .diff p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink-700);
+  margin: 0 auto;
+  max-width: 32ch;
+}
+
+/* ---- Featured book band ---- */
+.storybook-series-website .featured-inner {
+  display: grid;
+  grid-template-columns: 0.85fr 1fr;
+  gap: var(--space-9);
+  align-items: center;
+}
+.storybook-series-website .featured-cover {
+  position: relative;
+  aspect-ratio: 3/4;
+  background: var(--clay-100);
+  border-radius: 6px 14px 14px 6px;
+  box-shadow: var(--shadow-paper), var(--shadow-lg);
+  border: 1px solid var(--ink-100);
+  overflow: hidden;
+}
+.storybook-series-website .featured-cover .spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 18px;
+  background: linear-gradient(to right, rgba(50, 54, 31, 0.22), transparent 85%);
+}
+.storybook-series-website .featured-cover .placeholder {
+  position: absolute;
+  inset: 18px 18px 30% 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 22px;
+  text-align: center;
+}
+.storybook-series-website .featured-cover .cover-text {
+  position: absolute;
+  left: 36px;
+  right: 18px;
+  bottom: 24px;
+  color: var(--sage-700);
+  text-align: center;
+  pointer-events: none;
+}
+.storybook-series-website .featured-cover .cover-text .title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 20px;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+}
+.storybook-series-website .featured-cover .cover-text .their {
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 26px;
+  line-height: 1;
+  margin-bottom: 4px;
+  text-transform: none;
+  font-weight: 400;
+}
+
+.storybook-series-website .featured-content .eyebrow {
+  color: var(--clay-500);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: var(--space-3);
+  font-family: var(--font-body);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  font-weight: 600;
+}
+.storybook-series-website .featured-content .eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 36px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+.storybook-series-website .featured-content h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--sage-700);
+  margin: 0;
+}
+.storybook-series-website .featured-content .their-name {
+  color: var(--clay-500);
+  font-style: italic;
+}
+.storybook-series-website .featured-content .subtitle {
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 32px;
+  line-height: 1.05;
+  margin: var(--space-3) 0 var(--space-5);
+}
+.storybook-series-website .featured-content p {
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-700);
+  margin: 0 0 var(--space-4);
+  max-width: 50ch;
+}
+
+.storybook-series-website .for-the-moments {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--ink-100);
+}
+.storybook-series-website .for-the-moments .label-line {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--sage-500);
+  margin-bottom: var(--space-3);
+}
+.storybook-series-website .for-the-moments ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px var(--space-5);
+}
+.storybook-series-website .for-the-moments li {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 16px;
+  color: var(--sage-700);
+  line-height: 1.4;
+  padding-left: 22px;
+  position: relative;
+}
+.storybook-series-website .for-the-moments li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 12px;
+  height: 12px;
+  background: var(--clay-300);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+}
+
+/* ---- Persona grid ---- */
+.storybook-series-website .persona-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  max-width: 980px;
+  margin: 0 auto;
+}
+.storybook-series-website .persona-card {
+  background: var(--cream-50);
+  border: 1px solid var(--ink-100);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+}
+.storybook-series-website .persona-card .label-line {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--sage-500);
+  margin-bottom: var(--space-3);
+}
+.storybook-series-website .persona-card h4 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-size: 19px;
+  color: var(--sage-700);
+  margin: 0 0 var(--space-2);
+  letter-spacing: -0.005em;
+}
+.storybook-series-website .persona-card h4 .script {
+  font-family: var(--font-script);
+  text-transform: none;
+  color: var(--clay-500);
+  font-size: 1.15em;
+  margin-left: 0.15em;
+}
+.storybook-series-website .persona-card p {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-700);
+  margin: 0;
+}
+
+/* ---- Coming next shelf ---- */
+.storybook-series-website .shelf {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-5);
+}
+.storybook-series-website .upcoming {
+  background: var(--cream-50);
+  border-radius: 6px 14px 14px 6px;
+  border: 1px solid var(--ink-100);
+  padding: var(--space-6) var(--space-5);
+  position: relative;
+  aspect-ratio: 3/4;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.storybook-series-website .upcoming::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  background: linear-gradient(to right, rgba(50, 54, 31, 0.15), transparent 90%);
+}
+.storybook-series-website .upcoming .small-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--sage-500);
+  font-weight: 600;
+}
+.storybook-series-website .upcoming .their {
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 22px;
+  line-height: 1;
+  margin-top: auto;
+}
+.storybook-series-website .upcoming h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 19px;
+  color: var(--sage-700);
+  margin: 4px 0 var(--space-3);
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+}
+.storybook-series-website .upcoming .for {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-500);
+  line-height: 1.4;
+}
+.storybook-series-website .upcoming .leaf {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+/* ---- Closing ---- */
+.storybook-series-website .closing {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.storybook-series-website .closing h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  font-size: clamp(40px, 5vw, 68px);
+  line-height: 0.95;
+  color: var(--cream-50);
+  margin: 0 0 var(--space-3);
+}
+.storybook-series-website .closing h2 .script {
+  font-family: var(--font-script);
+  text-transform: none;
+  color: var(--clay-300);
+  font-size: 1.15em;
+  margin-left: 0.12em;
+}
+.storybook-series-website .closing .lead {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.5;
+  color: var(--cream-100);
+  margin: var(--space-4) auto var(--space-6);
+  max-width: 52ch;
+  font-style: italic;
+  font-weight: 400;
+}
+.storybook-series-website .closing .btn-primary.on-dark {
+  background: var(--cream-50);
+  color: var(--sage-700);
+  border-color: var(--cream-50);
+}
+.storybook-series-website .closing .btn-primary.on-dark:hover {
+  background: var(--cream-100);
+  border-color: var(--cream-100);
+}
+
+/* ---- Footer ---- */
+.storybook-series-website footer.foot {
+  background: var(--cream-50);
+  border-top: 1px solid var(--ink-100);
+  padding: var(--space-8) 0 var(--space-6);
+}
+.storybook-series-website .foot-inner {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: var(--space-7);
+  align-items: start;
+}
+.storybook-series-website .foot-mark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--sage-700);
+  font-size: 22px;
+  line-height: 1;
+}
+.storybook-series-website .foot-script {
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 26px;
+  line-height: 1;
+  margin-top: 4px;
+}
+.storybook-series-website .foot h4 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--sage-500);
+  margin: 0 0 var(--space-4);
+}
+.storybook-series-website .foot ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.storybook-series-website .foot ul li { margin-bottom: 10px; }
+.storybook-series-website .foot ul li a {
+  color: var(--ink-700);
+  text-decoration: none;
+  font-size: 14px;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+.storybook-series-website .foot ul li a:hover { color: var(--clay-500); }
+.storybook-series-website .foot .blurb {
+  font-size: 14px;
+  color: var(--ink-500);
+  line-height: 1.6;
+  max-width: 32ch;
+  margin-top: var(--space-5);
+}
+.storybook-series-website .foot-ornament {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-8);
+  opacity: 0.8;
+}
+.storybook-series-website .foot-bot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--space-7);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--ink-100);
+  font-size: 12px;
+  color: var(--ink-500);
+}
+.storybook-series-website .foot-bot .with-care {
+  font-family: var(--font-script);
+  color: var(--clay-500);
+  font-size: 18px;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 900px) {
+  .storybook-series-website .hero-inner { grid-template-columns: 1fr; }
+  .storybook-series-website .featured-inner { grid-template-columns: 1fr; }
+  .storybook-series-website .diff-grid { grid-template-columns: 1fr; }
+  .storybook-series-website .persona-grid { grid-template-columns: 1fr 1fr; }
+  .storybook-series-website .shelf { grid-template-columns: 1fr 1fr; }
+  .storybook-series-website .foot-inner { grid-template-columns: 1fr 1fr; }
+  .storybook-series-website .for-the-moments ul { grid-template-columns: 1fr; }
+}
