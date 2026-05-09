@@ -1,7 +1,15 @@
-# Canvas Studio POC
+# Main Character Crew (canvas-studio-poc)
 
-A storybook studio for the people you love most. Three product
-surfaces and a brand kit, built on a shared brand foundation.
+**Main Character Crew** — *Stories Made the Way You're Made.*
+
+A personalised storybook studio for the people you love most. The
+customer-facing brand is **Main Character Crew**, a sub-brand of
+Rooted & Revitalized. The repo and engineering surface keep the
+"canvas-studio" name; only customer-visible copy uses Main Character
+Crew. See [docs/VOICE.md](docs/VOICE.md) for the brand contract.
+
+Three product surfaces and a brand kit, built on a shared brand
+foundation.
 
 ## Surfaces
 

@@ -7,12 +7,43 @@
  *   - Categories: Plants, DIY Projects, Handmade Pieces, Real Life.
  */
 
-export const tagline = {
-  primary: 'Rooted in Growth',
-  secondary: 'Revitalized through Creating',
+/**
+ * Parent brand: Rooted & Revitalized. The umbrella creator brand.
+ */
+export const parentBrand = {
+  name: 'Rooted & Revitalized',
+  tagline: {
+    primary: 'Rooted in Growth',
+    secondary: 'Revitalized through Creating',
+  },
+  categories: ['Plants', 'DIY Projects', 'Handmade Pieces', 'Real Life'],
 } as const;
 
-export const categories = ['Plants', 'DIY Projects', 'Handmade Pieces', 'Real Life'] as const;
+/**
+ * Product brand: Main Character Crew.
+ *
+ * Customer-facing line for the personalised illustrated children's
+ * books product (the BookWizard at /app.html). Sub-brand of the
+ * Rooted & Revitalized parent.
+ */
+export const productBrand = {
+  name: 'Main Character Crew',
+  tagline: 'Stories Made the Way You’re Made.',
+  /** Optional umbrella publisher imprint. TBD; Stim & Story Press is a candidate. */
+  publisher: null as string | null,
+  // The four signal words layered into the tagline:
+  //   - "Stories"     — what we make
+  //   - "the Way"     — process / care
+  //   - "You're Made" — the child's character + sensory profile
+  // Keep these in mind when extending copy.
+} as const;
+
+/**
+ * Backwards-compatible re-exports. Existing imports of `tagline` and
+ * `categories` see the parent-brand values.
+ */
+export const tagline = parentBrand.tagline;
+export const categories = parentBrand.categories;
 
 export type Category = (typeof categories)[number];
 

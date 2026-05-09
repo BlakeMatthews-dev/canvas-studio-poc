@@ -1,9 +1,44 @@
-# VOICE.md — Canvas Studio Brand Voice
+# VOICE.md — Main Character Crew Brand Voice
 
 The voice rules below are a contract. They apply to all user-facing
 copy across `/`, `/storybook-series.html`, `/app.html`, and any future
 surface. They were established in chat3 of the Anthropic design
 bundle and are codified here so future contributors can find them.
+
+## Brand structure
+
+- **Parent brand:** Rooted & Revitalized — the umbrella creator
+  brand. Owns the palette, type, motifs, primitives, and the parent
+  tagline (`Rooted in Growth ✦ Revitalized through Creating`).
+- **Product brand:** **Main Character Crew** — the customer-facing
+  line for the personalised illustrated children's books product.
+  Sub-brand of Rooted & Revitalized.
+- **Product tagline:** **Stories Made the Way You're Made.** Six
+  words. The double-meaning (sensory profile + character creation)
+  does the ND signaling without naming it. See "Hard rules" §5.
+- **Umbrella publisher:** TBD. *Stim & Story Press* is a candidate
+  imprint; not yet committed. Most imprints don't surface until book
+  three or four anyway.
+
+The parent and product names appear together in the topbar and
+footer mark: **"Main Character Crew · by · Rooted & Revitalized"**.
+Inside the codebase, "Canvas Studio" remains the engineering name
+(repo, file paths, ADRs, internal docs). Customer-visible surfaces
+use Main Character Crew.
+
+`src/brand/voice.ts` exposes both as constants:
+
+```ts
+import { parentBrand, productBrand } from '@/brand';
+
+parentBrand.name             // "Rooted & Revitalized"
+parentBrand.tagline.primary  // "Rooted in Growth"
+parentBrand.categories       // ["Plants", "DIY Projects", ...]
+
+productBrand.name            // "Main Character Crew"
+productBrand.tagline         // "Stories Made the Way You're Made."
+productBrand.publisher       // null (TBD)
+```
 
 ## Hard rules
 
