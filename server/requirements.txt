@@ -3,3 +3,6 @@ uvicorn[standard]>=0.34
 psycopg[binary]>=3.2
 psycopg-pool>=3.2
 httpx>=0.28
+pillow>=11.0
+pydantic>=2.0
+reportlab>=4.0
