@@ -37,7 +37,7 @@ function Topbar() {
       </a>
       <nav className="nav">
         <a href="#how">How it grows</a>
-        <a href="#series">The series</a>
+        <a href="/storybook-series.html">The series</a>
         <a href="#features">Features</a>
         <a href="#pricing">Pricing</a>
       </nav>

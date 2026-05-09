@@ -24,6 +24,8 @@ export default defineConfig({
       input: {
         // Marketing homepage at /
         main: resolve(__dirname, 'index.html'),
+        // Storybook Series page at /storybook-series.html
+        storybookSeries: resolve(__dirname, 'storybook-series.html'),
         // BookWizard / Workspace app at /app.html
         app: resolve(__dirname, 'app.html'),
         // Brand kit visual smoke test at /brand-sample.html
