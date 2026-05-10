@@ -13,6 +13,7 @@ Endpoints
   Layout versions  POST/GET /api/layout-versions
   Image gen        POST     /api/generate/image
   Image edit       POST     /api/generate/edit
+  LLM chat         POST     /api/llm/chat   (OpenAI-compat, backed by Anthropic)
 
   Assets           GET/POST /api/assets
                    GET/PUT/DELETE /api/assets/{asset_id}
@@ -49,7 +50,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-# ── Config ────────────────────────────────────────────────────────────
+# ── Config ──────────────────────────────────────────────────────
 
 DB_DSN = (
     f"host={os.environ.get('DB_HOST', '127.0.0.1')} "
@@ -64,18 +65,119 @@ EXPORT_SCRIPT = Path(__file__).parent / "export_book.py"
 
 _KEY_PATTERN = re.compile(r"[^a-zA-Z0-9_-]")
 
+_INIT_SQL = """
+CREATE TABLE IF NOT EXISTS books (
+    key TEXT PRIMARY KEY,
+    data JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS characters (
+    key TEXT PRIMARY KEY,
+    data JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS templates (
+    key TEXT PRIMARY KEY,
+    data JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS generation_attempts (
+    id SERIAL PRIMARY KEY,
+    book_key TEXT NOT NULL,
+    scene_id TEXT NOT NULL,
+    layer_id TEXT NOT NULL,
+    attempt_type TEXT NOT NULL,
+    prompt TEXT NOT NULL DEFAULT '',
+    model_id TEXT,
+    quality TEXT NOT NULL DEFAULT 'draft',
+    verdict TEXT NOT NULL DEFAULT 'pending',
+    data JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS page_layout_versions (
+    id SERIAL PRIMARY KEY,
+    book_key TEXT NOT NULL,
+    scene_id TEXT NOT NULL,
+    version INT NOT NULL,
+    layout JSONB NOT NULL DEFAULT '{}',
+    diff JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS asset_sheets (
+    id SERIAL PRIMARY KEY,
+    book_key TEXT NOT NULL,
+    asset_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('character', 'setting', 'prop')),
+    name TEXT NOT NULL DEFAULT '',
+    reference_photos JSONB NOT NULL DEFAULT '[]',
+    sheet_image TEXT,
+    lora_name TEXT,
+    ip_adapter_weight REAL NOT NULL DEFAULT 0.8,
+    prompt_description TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (book_key, asset_id)
+);
+CREATE TABLE IF NOT EXISTS page_templates (
+    id SERIAL PRIMARY KEY,
+    book_key TEXT NOT NULL,
+    page_number INT NOT NULL,
+    scene_id TEXT,
+    status TEXT NOT NULL DEFAULT 'draft',
+    layout JSONB NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (book_key, page_number)
+);
+CREATE TABLE IF NOT EXISTS page_layers (
+    id SERIAL PRIMARY KEY,
+    template_id INT NOT NULL REFERENCES page_templates(id) ON DELETE CASCADE,
+    book_key TEXT NOT NULL,
+    page_number INT NOT NULL,
+    layer_kind TEXT NOT NULL CHECK (layer_kind IN ('background', 'character', 'text')),
+    z_index INT NOT NULL DEFAULT 0,
+    asset_id TEXT,
+    prompt TEXT NOT NULL DEFAULT '',
+    negative_prompt TEXT NOT NULL DEFAULT '',
+    ip_adapter_refs JSONB NOT NULL DEFAULT '[]',
+    loras JSONB NOT NULL DEFAULT '[]',
+    controlnet_pose JSONB,
+    size TEXT NOT NULL DEFAULT '1024x1024',
+    quality TEXT NOT NULL DEFAULT 'draft',
+    seed INT,
+    image_url TEXT,
+    history JSONB NOT NULL DEFAULT '[]',
+    slot JSONB,
+    text_config JSONB,
+    is_personalizable BOOLEAN NOT NULL DEFAULT FALSE,
+    personalization_slot TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS finalized_pages (
+    id SERIAL PRIMARY KEY,
+    book_key TEXT NOT NULL,
+    page_number INT NOT NULL,
+    customer_id TEXT NOT NULL DEFAULT '',
+    template_id INT,
+    composite_url TEXT NOT NULL,
+    pdf_ready BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (book_key, page_number, customer_id)
+);
+"""
+
 
 def safe_key(key: str | None) -> str:
     return _KEY_PATTERN.sub("_", key or "untitled")[:80]
 
 
-# ── App lifecycle ─────────────────────────────────────────────────────
+# ── App lifecycle ──────────────────────────────────────────────────
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     pool = psycopg_pool.AsyncConnectionPool(DB_DSN, open=False, max_size=10)
     await pool.open()
+    async with pool.connection() as conn:
+        await conn.execute(_INIT_SQL)
     app.state.pool = pool
     app.state.http = httpx.AsyncClient(timeout=30.0)
     try:
@@ -94,7 +196,7 @@ app.add_middleware(
 )
 
 
-# ── Helpers ───────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────
 
 
 async def db_execute(app: FastAPI, query: str, params: tuple = ()) -> None:
@@ -122,7 +224,7 @@ async def db_fetchone(
         return await cur.fetchone()
 
 
-# ── Books ─────────────────────────────────────────────────────────────
+# ── Books ──────────────────────────────────────────────────────────
 
 
 @app.post("/api/books/{key}")
@@ -191,7 +293,7 @@ async def truncate_books() -> dict[str, bool]:
     return {"ok": True}
 
 
-# ── Templates ─────────────────────────────────────────────────────────
+# ── Templates ────────────────────────────────────────────────────────
 
 
 @app.get("/api/templates")
@@ -270,7 +372,7 @@ async def delete_character(key: str) -> dict[str, bool]:
     return {"ok": True}
 
 
-# ── Generation attempts (training data) ───────────────────────────────
+# ── Generation attempts (training data) ─────────────────────────────────
 
 
 @app.post("/api/generation-attempts")
@@ -355,7 +457,7 @@ async def list_generation_attempts(
     return [_isoize(r) for r in rows]
 
 
-# ── Page layout versions (training data) ──────────────────────────────
+# ── Page layout versions (training data) ────────────────────────────────
 
 
 @app.post("/api/layout-versions")
@@ -460,6 +562,71 @@ async def api_generate_edit(request: Request) -> dict[str, Any]:
         input_fidelity=body.get("input_fidelity", "high"),
     )
     return {"data_url": data_url}
+
+
+# ── LLM chat (OpenAI-compat, backed by Anthropic) ───────────────────────
+
+_MODEL_MAP: dict[str, str] = {
+    "gemini-flash": "claude-haiku-4-5-20251001",
+    "gemini-2.0-flash": "claude-haiku-4-5-20251001",
+    "gemini-pro": "claude-sonnet-4-6",
+    "gpt-4o-mini": "claude-haiku-4-5-20251001",
+    "gpt-4o": "claude-sonnet-4-6",
+}
+
+
+@app.post("/api/llm/chat")
+async def llm_chat(request: Request) -> dict[str, Any]:
+    """OpenAI-compatible chat endpoint backed by Anthropic."""
+    body = await request.json()
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise HTTPException(500, {"error": "ANTHROPIC_API_KEY not configured"})
+
+    raw_model = body.get("model", "gemini-flash")
+    model = _MODEL_MAP.get(
+        raw_model,
+        raw_model if raw_model.startswith("claude") else "claude-haiku-4-5-20251001",
+    )
+
+    messages: list[dict[str, Any]] = body.get("messages", [])
+    system_texts = [m["content"] for m in messages if m.get("role") == "system"]
+    chat_messages = [m for m in messages if m.get("role") != "system"]
+
+    payload: dict[str, Any] = {
+        "model": model,
+        "max_tokens": min(int(body.get("max_tokens", 16000)), 16000),
+        "messages": chat_messages,
+    }
+    if system_texts:
+        payload["system"] = "\n\n".join(system_texts)
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json=payload,
+        )
+
+    if resp.status_code != 200:
+        try:
+            err = resp.json().get("error", {})
+        except Exception:
+            err = {}
+        raise HTTPException(
+            502,
+            {"error": err.get("message") or f"Anthropic returned {resp.status_code}"},
+        )
+
+    data = resp.json()
+    text = next(
+        (c["text"] for c in data.get("content", []) if c.get("type") == "text"), ""
+    )
+    return {"choices": [{"message": {"role": "assistant", "content": text}}]}
 
 
 # ── Asset sheets ──────────────────────────────────────────────────────
@@ -599,7 +766,6 @@ async def generate_asset_sheet(asset_id: str, request: Request) -> dict[str, Any
         quality=body.get("quality", "standard"),
     )
 
-    # If the asset has reference photos, drive generation as img2img
     ref_photos = asset.get("reference_photos") or []
     if ref_photos:
         from engine.image_provider import image_edit
@@ -626,7 +792,7 @@ async def generate_asset_sheet(asset_id: str, request: Request) -> dict[str, Any
     return _isoize(updated)
 
 
-# ── Page templates ────────────────────────────────────────────────────
+# ── Page templates ─────────────────────────────────────────────────────
 
 
 @app.get("/api/page-templates")
@@ -714,7 +880,7 @@ async def delete_page_template(template_id: int) -> dict[str, bool]:
     return {"ok": True}
 
 
-# ── Page layers ───────────────────────────────────────────────────────
+# ── Page layers ────────────────────────────────────────────────────────
 
 
 @app.get("/api/page-templates/{template_id}/layers")
@@ -859,7 +1025,6 @@ async def generate_page_layer(
         generate_layer,
     )
 
-    # Resolve IP-Adapter refs — fetch sheet_image from asset_sheets
     raw_refs = layer.get("ip_adapter_refs") or []
     resolved_refs: list[IPAdapterRef] = []
     for r in raw_refs:
@@ -959,7 +1124,7 @@ async def preview_page_template(template_id: int) -> dict[str, Any]:
     from engine.compositor import composite_scene
 
     layer_dicts = [
-        {**dict(l), "type": l["layer_kind"]}  # compositor expects "type"
+        {**dict(l), "type": l["layer_kind"]}
         for l in layers
         if l.get("image_url")
     ]
@@ -977,7 +1142,7 @@ async def preview_page_template(template_id: int) -> dict[str, Any]:
     return {"template_id": template_id, "preview": data_url}
 
 
-# ── Personalization swap ──────────────────────────────────────────────
+# ── Personalization swap ───────────────────────────────────────────────
 
 
 @app.post("/api/page-templates/{template_id}/personalize")
@@ -1049,7 +1214,7 @@ async def personalize_template(
     return {"swapped": swapped, "customer_id": customer_id, "template_id": template_id}
 
 
-# ── Finalize page ─────────────────────────────────────────────────────
+# ── Finalize page ───────────────────────────────────────────────────────
 
 
 @app.post("/api/finalize")
@@ -1107,7 +1272,7 @@ async def finalize_page(request: Request) -> dict[str, Any]:
     return _isoize(row)
 
 
-# ── Lulu Print-on-Demand proxy ────────────────────────────────────────
+# ── Lulu Print-on-Demand proxy ──────────────────────────────────────────
 
 
 async def _proxy_lulu(method: str, path: str, **kwargs: Any) -> Any:
@@ -1224,7 +1389,7 @@ async def export_pdf(request: Request) -> Any:
     )
 
 
-# ── Error mapping ─────────────────────────────────────────────────────
+# ── Error mapping ───────────────────────────────────────────────────────
 
 
 @app.exception_handler(HTTPException)
@@ -1237,7 +1402,7 @@ async def http_exception_handler(
     return JSONResponse(status_code=exc.status_code, content=detail)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────
 
 
 def _now_iso() -> str:
@@ -1255,7 +1420,7 @@ def _isoize(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-# ── Entrypoint ────────────────────────────────────────────────────────
+# ── Entrypoint ───────────────────────────────────────────────────────
 
 
 if __name__ == "__main__":
