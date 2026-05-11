@@ -52,17 +52,15 @@ function CharacterCard({ char, onChange, onRemove, index, onSaveChar }) {
   const handlePhotoUpload = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    const maxPhotos = 5;
     const currentPhotos = char.reference_photos || [];
-    const toProcess = files.slice(0, maxPhotos - currentPhotos.length);
     let loaded = 0;
     const newPhotos = [];
-    toProcess.forEach((file) => {
+    files.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
         newPhotos.push(ev.target.result);
         loaded++;
-        if (loaded === toProcess.length) {
+        if (loaded === files.length) {
           const allPhotos = [...currentPhotos, ...newPhotos];
           onChange("reference_photos", allPhotos);
           extractFeaturesFromPhotos(allPhotos).then((features) => {
@@ -110,7 +108,7 @@ function CharacterCard({ char, onChange, onRemove, index, onSaveChar }) {
       {expanded && (
         <div style={{ padding: "4px 12px 12px" }}>
           <div style={{ marginBottom: 10, padding: 8, background: "var(--ink-2)", borderRadius: 4 }}>
-            <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>Reference photos (3-5 photos of the child for personalized character)</div>
+            <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>Reference photos — upload as many as you have for best likeness</div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               {(char.reference_photos || []).map((photo, pi) => (
                 <div key={pi} style={{ width: 56, height: 56, borderRadius: 4, overflow: "hidden", position: "relative", border: "1px solid var(--border)" }}>
@@ -118,17 +116,15 @@ function CharacterCard({ char, onChange, onRemove, index, onSaveChar }) {
                   <button onClick={() => removePhoto(pi)} style={{ position: "absolute", top: 1, right: 1, width: 14, height: 14, fontSize: 8, padding: 0, background: "rgba(0,0,0,0.7)", color: "var(--text)", border: "none", borderRadius: 2, cursor: "pointer", lineHeight: "14px" }}>x</button>
                 </div>
               ))}
-              {(char.reference_photos || []).length < 5 && (
-                <label style={{ width: 56, height: 56, borderRadius: 4, border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 18, color: "var(--text-dim)" }}>
-                  +
-                  <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} style={{ display: "none" }} />
-                </label>
-              )}
+              <label style={{ width: 56, height: 56, borderRadius: 4, border: "2px dashed var(--border)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 18, color: "var(--text-dim)" }}>
+                +
+                <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} style={{ display: "none" }} />
+              </label>
             </div>
             <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4 }}>
               {(char.reference_photos || []).length === 0
                 ? "No photos — character will be text-described only"
-                : `${(char.reference_photos || []).length}/5 uploaded`}
+                : `${(char.reference_photos || []).length} photo${(char.reference_photos || []).length > 1 ? "s" : ""} — all will be used`}
             </div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

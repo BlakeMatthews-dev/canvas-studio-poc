@@ -1,0 +1,1046 @@
+openapi: 3.0.3
+info:
+  title: Canvas Studio — Layered Pipeline API
+  version: "1.0"
+  description: |
+    19 endpoints covering the Asset Registry, Page Templates, Page Layers,
+    generation, preview, personalisation, and finalization pipeline.
+    All endpoints are prefixed `/api`.
+
+servers:
+  - url: http://localhost:5174
+    description: Local dev (Vite proxy)
+
+tags:
+  - name: Assets
+    description: Visual asset registry (characters, settings, props)
+  - name: Page Templates
+    description: Per-page layout shells
+  - name: Page Layers
+    description: Individual image/text layers within a page template
+  - name: Preview & Finalize
+    description: Composite preview and final PDF-ready page records
+
+paths:
+
+  # ─────────────────────────────────────────────────────────────────
+  # Assets
+  # ─────────────────────────────────────────────────────────────────
+
+  /api/assets:
+    get:
+      tags: [Assets]
+      summary: List assets for a book
+      operationId: listAssets
+      parameters:
+        - $ref: "#/components/parameters/BookKeyQuery"
+      responses:
+        "200":
+          description: Array of asset sheets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AssetSheet"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+
+    post:
+      tags: [Assets]
+      summary: Create or upsert an asset
+      operationId: createAsset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetBody"
+      responses:
+        "200":
+          description: Created / updated asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetSheet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/assets/{asset_id}:
+    parameters:
+      - $ref: "#/components/parameters/AssetIdPath"
+      - $ref: "#/components/parameters/BookKeyQuery"
+
+    get:
+      tags: [Assets]
+      summary: Get a single asset
+      operationId: getAsset
+      responses:
+        "200":
+          description: Asset sheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetSheet"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Assets]
+      summary: Update an existing asset
+      operationId: updateAsset
+      parameters: []   # book_key comes from body, not query, on PUT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAssetBody"
+      responses:
+        "200":
+          description: Updated asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetSheet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Assets]
+      summary: Delete an asset
+      operationId: deleteAsset
+      responses:
+        "200":
+          description: Deletion acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /api/assets/{asset_id}/generate-sheet:
+    post:
+      tags: [Assets]
+      summary: Generate (or regenerate) the reference sheet image
+      operationId: generateAssetSheet
+      description: |
+        Uses `img2img` when the asset has `reference_photos`; falls back to
+        `txt2img` otherwise.  Background removal is applied for `character`
+        kind; skipped for `setting` and `prop`.
+      parameters:
+        - $ref: "#/components/parameters/AssetIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateSheetBody"
+      responses:
+        "200":
+          description: Asset with populated `sheet_image`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetSheet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Page Templates
+  # ─────────────────────────────────────────────────────────────────
+
+  /api/page-templates:
+    get:
+      tags: [Page Templates]
+      summary: List page templates for a book
+      operationId: listPageTemplates
+      parameters:
+        - $ref: "#/components/parameters/BookKeyQuery"
+      responses:
+        "200":
+          description: Array of page templates ordered by page_number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PageTemplate"
+
+    post:
+      tags: [Page Templates]
+      summary: Create or upsert a page template
+      operationId: createPageTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePageTemplateBody"
+      responses:
+        "200":
+          description: Created / updated page template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTemplate"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/page-templates/{template_id}:
+    parameters:
+      - $ref: "#/components/parameters/TemplateIdPath"
+
+    get:
+      tags: [Page Templates]
+      summary: Get a single page template
+      operationId: getPageTemplate
+      responses:
+        "200":
+          description: Page template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTemplate"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Page Templates]
+      summary: Update a page template
+      operationId: updatePageTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePageTemplateBody"
+      responses:
+        "200":
+          description: Updated page template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageTemplate"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Page Templates]
+      summary: Delete a page template and all its layers
+      operationId: deletePageTemplate
+      responses:
+        "200":
+          description: Deletion acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Page Layers
+  # ─────────────────────────────────────────────────────────────────
+
+  /api/page-templates/{template_id}/layers:
+    parameters:
+      - $ref: "#/components/parameters/TemplateIdPath"
+
+    get:
+      tags: [Page Layers]
+      summary: List layers for a template ordered by z_index
+      operationId: listPageLayers
+      responses:
+        "200":
+          description: Array of page layers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PageLayer"
+
+    post:
+      tags: [Page Layers]
+      summary: Add a layer to a template
+      operationId: createPageLayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePageLayerBody"
+      responses:
+        "200":
+          description: Created layer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageLayer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Template not found
+          $ref: "#/components/responses/NotFound"
+
+  /api/page-templates/{template_id}/layers/{layer_id}:
+    parameters:
+      - $ref: "#/components/parameters/TemplateIdPath"
+      - $ref: "#/components/parameters/LayerIdPath"
+
+    put:
+      tags: [Page Layers]
+      summary: Update a layer
+      operationId: updatePageLayer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePageLayerBody"
+      responses:
+        "200":
+          description: Updated layer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageLayer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Page Layers]
+      summary: Delete a layer
+      operationId: deletePageLayer
+      responses:
+        "200":
+          description: Deletion acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkResponse"
+
+  /api/page-templates/{template_id}/layers/{layer_id}/generate:
+    post:
+      tags: [Page Layers]
+      summary: Generate image for a single layer
+      operationId: generatePageLayer
+      description: |
+        Resolves IP-Adapter refs from `asset_sheets.sheet_image`, calls the
+        best available backend (Diffusers → ComfyUI fallback), appends the
+        previous `image_url` to `history`, and persists the result.
+      parameters:
+        - $ref: "#/components/parameters/TemplateIdPath"
+        - $ref: "#/components/parameters/LayerIdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateLayerBody"
+      responses:
+        "200":
+          description: Updated layer with generation metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateLayerResult"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─────────────────────────────────────────────────────────────────
+  # Preview & Finalize
+  # ─────────────────────────────────────────────────────────────────
+
+  /api/page-templates/{template_id}/preview:
+    get:
+      tags: [Preview & Finalize]
+      summary: Composite all layers and return a preview data URL
+      operationId: previewPageTemplate
+      parameters:
+        - $ref: "#/components/parameters/TemplateIdPath"
+      responses:
+        "200":
+          description: Preview PNG as data URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreviewResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/page-templates/{template_id}/personalize:
+    post:
+      tags: [Preview & Finalize]
+      summary: Swap personalizable layers with buyer-specific character art
+      operationId: personalizeTemplate
+      description: |
+        Only layers with `is_personalizable=true` are regenerated.  When
+        `reference_photos` are supplied, `img2img` (image_edit) is used;
+        otherwise `txt2img`.  Previous `image_url` is pushed to `history`.
+      parameters:
+        - $ref: "#/components/parameters/TemplateIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonalizeBody"
+      responses:
+        "200":
+          description: Swap summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonalizeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/finalize:
+    post:
+      tags: [Preview & Finalize]
+      summary: Composite and store a finalized page record
+      operationId: finalizePage
+      description: |
+        Composites all layers for `(book_key, page_number)` and writes to
+        `finalized_pages`.  Returns 422 when no layer has an `image_url`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalizeBody"
+      responses:
+        "200":
+          description: Finalized page record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalizedPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          description: No layer images to composite
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+
+  parameters:
+    BookKeyQuery:
+      name: book_key
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Book identifier
+
+    AssetIdPath:
+      name: asset_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+    TemplateIdPath:
+      name: template_id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+    LayerIdPath:
+      name: layer_id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    BadRequest:
+      description: Missing or invalid field
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Query parameter validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+
+    # ── Primitives ──────────────────────────────────────────────────
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: asset not found
+
+    DataUrl:
+      type: string
+      description: Base-64 PNG encoded as a data URL
+      example: "data:image/png;base64,iVBORw0KGgo..."
+
+    LayerKind:
+      type: string
+      enum: [background, character, text]
+
+    AssetKind:
+      type: string
+      enum: [character, setting, prop]
+
+    Quality:
+      type: string
+      enum: [draft, standard, high]
+      default: draft
+
+    ControlNetType:
+      type: string
+      enum: [openpose, depth, canny, scribble]
+
+    # ── Sub-objects ─────────────────────────────────────────────────
+
+    IPAdapterRefRecord:
+      type: object
+      description: |
+        Reference to an asset whose `sheet_image` is injected into
+        IP-Adapter cross-attention during generation.
+      required: [asset_id]
+      properties:
+        asset_id:
+          type: string
+        weight:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.8
+
+    LoRARefRecord:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Filename relative to LORA_DIR
+          example: hero_style.safetensors
+        weight:
+          type: number
+          minimum: 0
+          maximum: 2
+          default: 0.8
+
+    ControlNetInputRecord:
+      type: object
+      required: [image]
+      properties:
+        image:
+          $ref: "#/components/schemas/DataUrl"
+        type:
+          $ref: "#/components/schemas/ControlNetType"
+        strength:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.8
+
+    TextLayerConfigRecord:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+        font_size:
+          type: integer
+          default: 48
+        font_color:
+          type: array
+          items:
+            type: integer
+          minItems: 4
+          maxItems: 4
+          description: "[R, G, B, A] 0-255"
+          default: [0, 0, 0, 255]
+        align:
+          type: string
+          enum: [left, center, right]
+          default: center
+        font_path:
+          type: string
+          nullable: true
+        padding:
+          type: integer
+          default: 20
+
+    SlotRecord:
+      type: object
+      description: Bounding-box slot for compositor placement
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        anchor:
+          type: string
+          enum: [top-left, top-right, bottom-left, bottom-right, center]
+          default: top-left
+
+    # ── Asset sheets ────────────────────────────────────────────────
+
+    AssetSheet:
+      type: object
+      properties:
+        id:
+          type: integer
+        book_key:
+          type: string
+        asset_id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/AssetKind"
+        name:
+          type: string
+        reference_photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataUrl"
+        sheet_image:
+          $ref: "#/components/schemas/DataUrl"
+          nullable: true
+        lora_name:
+          type: string
+          nullable: true
+        ip_adapter_weight:
+          type: number
+          default: 0.8
+        prompt_description:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateAssetBody:
+      type: object
+      required: [book_key, asset_id, kind, name]
+      properties:
+        book_key:
+          type: string
+        asset_id:
+          type: string
+        kind:
+          $ref: "#/components/schemas/AssetKind"
+        name:
+          type: string
+        reference_photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataUrl"
+          default: []
+        lora_name:
+          type: string
+          nullable: true
+        ip_adapter_weight:
+          type: number
+          default: 0.8
+        prompt_description:
+          type: string
+          nullable: true
+
+    UpdateAssetBody:
+      type: object
+      required: [book_key]
+      description: All fields except `book_key` are optional (COALESCE update)
+      properties:
+        book_key:
+          type: string
+        name:
+          type: string
+        reference_photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataUrl"
+        lora_name:
+          type: string
+          nullable: true
+        ip_adapter_weight:
+          type: number
+        prompt_description:
+          type: string
+          nullable: true
+        sheet_image:
+          $ref: "#/components/schemas/DataUrl"
+          nullable: true
+
+    GenerateSheetBody:
+      type: object
+      required: [book_key]
+      properties:
+        book_key:
+          type: string
+        size:
+          type: string
+          default: "1024x1024"
+          example: "1024x1024"
+        quality:
+          $ref: "#/components/schemas/Quality"
+          default: standard
+
+    # ── Page templates ───────────────────────────────────────────────
+
+    PageTemplate:
+      type: object
+      properties:
+        id:
+          type: integer
+        book_key:
+          type: string
+        page_number:
+          type: integer
+        scene_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          default: draft
+        layout:
+          type: object
+          additionalProperties: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreatePageTemplateBody:
+      type: object
+      required: [book_key, page_number]
+      properties:
+        book_key:
+          type: string
+        page_number:
+          type: integer
+        scene_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          default: draft
+        layout:
+          type: object
+          default: {}
+
+    UpdatePageTemplateBody:
+      type: object
+      description: All fields optional (COALESCE update)
+      properties:
+        scene_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+        layout:
+          type: object
+
+    # ── Page layers ──────────────────────────────────────────────────
+
+    PageLayer:
+      type: object
+      properties:
+        id:
+          type: integer
+        template_id:
+          type: integer
+        book_key:
+          type: string
+        page_number:
+          type: integer
+        layer_kind:
+          $ref: "#/components/schemas/LayerKind"
+        z_index:
+          type: integer
+          default: 0
+        asset_id:
+          type: string
+          nullable: true
+        prompt:
+          type: string
+          default: ""
+        negative_prompt:
+          type: string
+          default: ""
+        ip_adapter_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/IPAdapterRefRecord"
+        loras:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoRARefRecord"
+        controlnet_pose:
+          $ref: "#/components/schemas/ControlNetInputRecord"
+          nullable: true
+        size:
+          type: string
+          default: "1024x1024"
+        quality:
+          $ref: "#/components/schemas/Quality"
+        seed:
+          type: integer
+          nullable: true
+        image_url:
+          $ref: "#/components/schemas/DataUrl"
+          nullable: true
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataUrl"
+          description: Previous image_url values, oldest first
+        slot:
+          $ref: "#/components/schemas/SlotRecord"
+          nullable: true
+        text_config:
+          $ref: "#/components/schemas/TextLayerConfigRecord"
+          nullable: true
+        is_personalizable:
+          type: boolean
+          default: false
+        personalization_slot:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreatePageLayerBody:
+      type: object
+      required: [layer_kind]
+      properties:
+        layer_kind:
+          $ref: "#/components/schemas/LayerKind"
+        z_index:
+          type: integer
+          default: 0
+        asset_id:
+          type: string
+          nullable: true
+        prompt:
+          type: string
+          default: ""
+        negative_prompt:
+          type: string
+          default: ""
+        ip_adapter_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/IPAdapterRefRecord"
+          default: []
+        loras:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoRARefRecord"
+          default: []
+        controlnet_pose:
+          $ref: "#/components/schemas/ControlNetInputRecord"
+          nullable: true
+        size:
+          type: string
+          default: "1024x1024"
+        quality:
+          $ref: "#/components/schemas/Quality"
+        seed:
+          type: integer
+          nullable: true
+        slot:
+          $ref: "#/components/schemas/SlotRecord"
+          nullable: true
+        text_config:
+          $ref: "#/components/schemas/TextLayerConfigRecord"
+          nullable: true
+        is_personalizable:
+          type: boolean
+          default: false
+        personalization_slot:
+          type: string
+          nullable: true
+
+    UpdatePageLayerBody:
+      type: object
+      description: All fields optional (COALESCE update)
+      properties:
+        z_index:
+          type: integer
+        prompt:
+          type: string
+        negative_prompt:
+          type: string
+        ip_adapter_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/IPAdapterRefRecord"
+        loras:
+          type: array
+          items:
+            $ref: "#/components/schemas/LoRARefRecord"
+        controlnet_pose:
+          $ref: "#/components/schemas/ControlNetInputRecord"
+          nullable: true
+        size:
+          type: string
+        quality:
+          $ref: "#/components/schemas/Quality"
+        seed:
+          type: integer
+          nullable: true
+        image_url:
+          $ref: "#/components/schemas/DataUrl"
+          nullable: true
+        slot:
+          $ref: "#/components/schemas/SlotRecord"
+          nullable: true
+        text_config:
+          $ref: "#/components/schemas/TextLayerConfigRecord"
+          nullable: true
+        is_personalizable:
+          type: boolean
+        personalization_slot:
+          type: string
+          nullable: true
+
+    GenerateLayerBody:
+      type: object
+      description: All fields optional — layer's persisted values are used as defaults
+      properties:
+        prompt:
+          type: string
+          description: Overrides layer.prompt for this generation only
+        negative_prompt:
+          type: string
+        quality:
+          $ref: "#/components/schemas/Quality"
+        seed:
+          type: integer
+          nullable: true
+
+    GenerateLayerResult:
+      allOf:
+        - $ref: "#/components/schemas/PageLayer"
+        - type: object
+          properties:
+            elapsed_s:
+              type: number
+              description: Wall-clock seconds for generation
+            backend:
+              type: string
+              enum:
+                - diffusers-txt2img
+                - diffusers-img2img
+                - comfyui-txt2img
+                - comfyui-img2img
+                - pillow
+
+    # ── Preview / personalise / finalize ────────────────────────────
+
+    PreviewResponse:
+      type: object
+      properties:
+        template_id:
+          type: integer
+        preview:
+          $ref: "#/components/schemas/DataUrl"
+
+    PersonalizeBody:
+      type: object
+      required: [customer_id]
+      properties:
+        customer_id:
+          type: string
+        reference_photos:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataUrl"
+          default: []
+          description: |
+            When non-empty, `img2img` is used; otherwise `txt2img`.
+        prompt:
+          type: string
+          description: Overrides the layer prompt for personalizable layers
+        quality:
+          $ref: "#/components/schemas/Quality"
+          default: standard
+
+    PersonalizeResponse:
+      type: object
+      properties:
+        swapped:
+          type: integer
+          description: Number of layers regenerated
+        customer_id:
+          type: string
+        template_id:
+          type: integer
+
+    FinalizeBody:
+      type: object
+      required: [book_key, page_number]
+      properties:
+        book_key:
+          type: string
+        page_number:
+          type: integer
+        customer_id:
+          type: string
+          default: ""
+          description: Empty string for the canonical (non-personalised) version
+
+    FinalizedPage:
+      type: object
+      properties:
+        id:
+          type: integer
+        book_key:
+          type: string
+        page_number:
+          type: integer
+        customer_id:
+          type: string
+        template_id:
+          type: integer
+        composite_url:
+          $ref: "#/components/schemas/DataUrl"
+        pdf_ready:
+          type: boolean
+          default: false
+        created_at:
+          type: string
+          format: date-time

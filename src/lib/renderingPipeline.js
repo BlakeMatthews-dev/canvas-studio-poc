@@ -1,5 +1,5 @@
 // Rendering Pipeline — consumes structured scene plans, produces deterministic generation calls.
-// The AI picks templates; this pipeline renders them.
+// Image generation routes through the backend (/api/generate/*) → ComfyUI (primary) or Diffusers (fallback).
 // Characters are normalized after generation: silhouette detect → scale → anchor snap.
 
 import {
@@ -10,148 +10,46 @@ import {
 } from "./templateEngine";
 import { normalizeCharacter, buildFaceMask } from "./characterNormalizer";
 
-const AZURE_KEY = import.meta.env.VITE_AZURE_KEY || "";
-const AZURE_ENDPOINT = import.meta.env.VITE_AZURE_ENDPOINT || "";
-const AZURE_DEPLOYMENTS = ["gpt-image-1-5", "gpt-image-2-1"];
-const AZURE_DRAFT_DEPLOYMENTS = ["gpt-image-1-mini"];
-const AZURE_API_VERSION = "2025-04-01-preview";
-const AZURE_API_VERSION_FALLBACK = "2025-03-01-preview";
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+// ── Backend image generation ─────────────────────────────────────────────────
+// All generation calls go through the FastAPI server at /api/generate/*.
+// The server handles ComfyUI + Diffusers + placeholder fallback.
+// No model credentials needed in the browser.
+
+async function _backendGenerate(prompt, size = "1024x1024", quality = "medium") {
+  const resp = await fetch("/api/generate/image", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, size, quality }),
+    signal: AbortSignal.timeout(185_000),
+  });
+  if (!resp.ok) throw new Error(`Generate failed: ${resp.status}`);
+  return (await resp.json()).data_url;
+}
+
+async function _backendEdit(imageDataUrls, prompt, size = "1024x1024", quality = "medium", inputFidelity = 0.8) {
+  const urls = Array.isArray(imageDataUrls) ? imageDataUrls : [imageDataUrls];
+  const fidelity = inputFidelity >= 0.7 ? "high" : "low";
+  const resp = await fetch("/api/generate/edit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_data_urls: urls, prompt, size, quality, input_fidelity: fidelity }),
+    signal: AbortSignal.timeout(185_000),
+  });
+  if (!resp.ok) throw new Error(`Edit failed: ${resp.status}`);
+  return (await resp.json()).data_url;
+}
+
+// Keep existing function names so BookWorkspace.jsx and other callers need no changes.
+export async function azureImageEdit(imageDataUrls, prompt, size = "1024x1024", quality = "medium", inputFidelity = 0.8) {
+  return _backendEdit(imageDataUrls, prompt, size, quality, inputFidelity);
+}
 
 async function azureImageGen(prompt, size = "1024x1024", quality = "medium") {
-  if (!AZURE_KEY || !AZURE_ENDPOINT) throw new Error("No Azure config");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000);
-  try {
-    const body = JSON.stringify({ prompt, n: 1, size, quality });
-    for (const dep of AZURE_DEPLOYMENTS) {
-      for (const apiVer of [AZURE_API_VERSION, AZURE_API_VERSION_FALLBACK]) {
-        try {
-          const res = await fetch(
-            `${AZURE_ENDPOINT}/openai/deployments/${dep}/images/generations?api-version=${apiVer}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "api-key": AZURE_KEY },
-              body,
-              signal: controller.signal,
-            }
-          );
-          if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
-            if (res.status === 404 || res.status === 400) continue;
-            throw new Error(e.error?.message || `Azure ${res.status}`);
-          }
-          const data = await res.json();
-          const img = data.data?.[0];
-          if (!img) throw new Error("No image from Azure");
-          if (img.b64_json) return `data:image/png;base64,${img.b64_json}`;
-          if (img.url) return img.url;
-          throw new Error("No image data");
-        } catch (err) {
-          if (err.name === "AbortError") throw err;
-          continue;
-        }
-      }
-    }
-    throw new Error("All Azure deployments failed");
-  } finally {
-    clearTimeout(timeout);
-  }
+  return _backendGenerate(prompt, size, quality);
 }
 
-function dataUrlToBlob(dataUrl) {
-  const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  const mime = match[1];
-  const base64 = match[2];
-  const binStr = atob(base64);
-  const arr = new Uint8Array(binStr.length);
-  for (let i = 0; i < binStr.length; i++) arr[i] = binStr.charCodeAt(i);
-  return new Blob([arr], { type: mime });
-}
-
-export async function azureImageEdit(imageDataUrls, prompt, size = "1024x1024", quality = "medium", inputFidelity = 0.8) {
-  if (!AZURE_KEY || !AZURE_ENDPOINT) throw new Error("No Azure config");
-
-  const urls = Array.isArray(imageDataUrls) ? imageDataUrls : [imageDataUrls];
-  const blobs = urls.map((u) => dataUrlToBlob(u)).filter(Boolean);
-  if (blobs.length === 0) throw new Error("No valid images for edit");
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000);
-
-  const errors = [];
-
-  try {
-    for (const dep of AZURE_DEPLOYMENTS) {
-      try {
-        const form = new FormData();
-        for (const blob of blobs) {
-          const ext = blob.type.includes("png") ? "png" : "jpg";
-          form.append("image[]", blob, `image.${ext}`);
-        }
-        form.append("prompt", prompt);
-        form.append("size", size);
-        form.append("n", "1");
-        form.append("quality", quality);
-        if (inputFidelity != null) {
-          form.append("input_fidelity", inputFidelity >= 0.7 ? "high" : "low");
-        }
-
-        const res = await fetch(
-          `${AZURE_ENDPOINT}/openai/deployments/${dep}/images/edits?api-version=${AZURE_API_VERSION}`,
-          {
-            method: "POST",
-            headers: { "api-key": AZURE_KEY },
-            body: form,
-            signal: controller.signal,
-          }
-        );
-
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          const msg = e.error?.message || `Azure edit ${res.status} on ${dep}`;
-          errors.push(msg);
-          if (res.status === 404 || res.status === 400) continue;
-          if (res.status === 429) continue;
-          throw new Error(msg);
-        }
-        const data = await res.json();
-        const img = data.data?.[0];
-        if (!img) throw new Error("No edited image");
-        if (img.b64_json) return `data:image/png;base64,${img.b64_json}`;
-        if (img.url) return img.url;
-        throw new Error("No image data");
-      } catch (err) {
-        if (err.name === "AbortError") throw err;
-        errors.push(err.message);
-        continue;
-      }
-    }
-    throw new Error(`All Azure edit deployments failed: ${errors.join("; ")}`);
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function geminiImageGen(prompt) {
-  if (!GEMINI_KEY) throw new Error("No Gemini key");
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `Generate an image: ${prompt}` }] }],
-        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`Gemini ${res.status}`);
-  const data = await res.json();
-  const part = data?.candidates?.[0]?.content?.parts?.find((p) => p.inlineData);
-  if (!part) throw new Error("No image from Gemini");
-  return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+async function azureDraftGen(prompt, size = "1024x1024", quality = "low") {
+  return _backendGenerate(prompt, size, "low");
 }
 
 function makePlaceholder(label) {
@@ -173,16 +71,9 @@ function makePlaceholder(label) {
 }
 
 async function generateImage(prompt, size, quality = "medium") {
-  if (AZURE_KEY && AZURE_ENDPOINT) {
-    try {
-      return await azureImageGen(prompt, size, quality);
-    } catch {}
-  }
-  if (GEMINI_KEY) {
-    try {
-      return await geminiImageGen(prompt);
-    } catch {}
-  }
+  try {
+    return await _backendGenerate(prompt, size, quality);
+  } catch {}
   return makePlaceholder(prompt.slice(0, 40));
 }
 
@@ -230,7 +121,6 @@ export async function renderScene(scenePlan, pageDims, onProgress) {
     try {
       const rawUrl = await generateImage(scenePlan.character_prompt, "1024x1024");
 
-      // Normalize: detect silhouette → scale → align to pose geometry
       const poseGeo = scenePlan.character_slot?.pose?.geo;
       onProgress?.(`Normalizing character for "${scenePlan.title}"...`);
       const normResult = await normalizeCharacter(rawUrl, poseGeo, 1024, 1024);
@@ -328,16 +218,12 @@ export async function compositeScene(renderedScene, pageDims) {
     if (!img) continue;
 
     if (layer.slot === "full_page") {
-      // Background: stretch to fill entire page
       ctx.drawImage(img, 0, 0, w, h);
     } else if (layer.type === "character" && layer.pose?.geo) {
-      // Character: anchor-snap using pose geometry
       await compositeAnchoredCharacter(ctx, img, layer, w, h);
     } else if (layer.slot && typeof layer.slot === "object") {
-      // Generic slot-based placement
       await compositeSlotted(ctx, img, layer.slot, w, h);
     } else {
-      // Fallback: centered
       const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight) * 0.8;
       const dw = img.naturalWidth * scale;
       const dh = img.naturalHeight * scale;
@@ -359,12 +245,10 @@ async function compositeAnchoredCharacter(ctx, img, layer, pageW, pageH) {
     h: slot.h * pageH,
   };
 
-  // Character should fill slot height, maintain aspect ratio
   const targetH = slotPx.h;
   const imgAspect = img.naturalWidth / img.naturalHeight;
   const targetW = targetH * imgAspect;
 
-  // Anchor: snap feet to bottom of slot (ground_contact) or seat to slot center (seat_contact)
   const anchorType = layer.pose.anchor || "ground_contact";
   let drawX, drawY;
 
@@ -480,9 +364,6 @@ function renderTextLayer(ctx, layer, pageW, pageH) {
 }
 
 // ── Background Removal ────────────────────────────────────────────────────
-// Removes near-white/grey backgrounds from generated images so layers
-// composite properly. Uses edge-based flood fill from corners with a
-// luminance threshold, then alpha-mattes the boundary for soft edges.
 
 function loadImage(url) {
   return new Promise((resolve, reject) => {
@@ -510,9 +391,7 @@ export async function removeBackground(imageDataUrl, threshold = 240, feather = 
   const w = canvas.width;
   const h = canvas.height;
 
-  // Build a mask: true = keep (foreground), false = remove (background)
-  // Start from corners and flood-fill pixels that are "background-colored"
-  const mask = new Uint8Array(w * h); // 0 = unvisited, 1 = bg, 2 = fg
+  const mask = new Uint8Array(w * h);
   const isBgColor = (idx) => {
     const r = data[idx * 4];
     const g = data[idx * 4 + 1];
@@ -525,7 +404,6 @@ export async function removeBackground(imageDataUrl, threshold = 240, feather = 
     return true;
   };
 
-  // BFS flood fill from all edge pixels
   const queue = [];
   for (let x = 0; x < w; x++) {
     if (isBgColor(x)) { mask[x] = 1; queue.push(x); }
@@ -555,12 +433,10 @@ export async function removeBackground(imageDataUrl, threshold = 240, feather = 
     }
   }
 
-  // Mark remaining unvisited as foreground
   for (let i = 0; i < mask.length; i++) {
     if (mask[i] === 0) mask[i] = 2;
   }
 
-  // Feather the alpha at boundaries for soft edges
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const idx = y * w + x;
@@ -632,46 +508,6 @@ export async function renderBook(bookPlan, onSceneProgress, onSceneComplete) {
 export { generateImage, makePlaceholder };
 
 // ── Layer Draft Generator ────────────────────────────────────────────────────
-// Generates a single layer at draft quality (512x512, quality "low").
-
-async function azureDraftGen(prompt, size = "1024x1024", quality = "low") {
-  if (!AZURE_KEY || !AZURE_ENDPOINT) throw new Error("No Azure config");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
-  try {
-    const body = JSON.stringify({ prompt, n: 1, size, quality });
-    for (const dep of AZURE_DRAFT_DEPLOYMENTS) {
-      try {
-        const res = await fetch(
-          `${AZURE_ENDPOINT}/openai/deployments/${dep}/images/generations?api-version=${AZURE_API_VERSION}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "api-key": AZURE_KEY },
-            body,
-            signal: controller.signal,
-          }
-        );
-        if (!res.ok) {
-          if (res.status === 404 || res.status === 400 || res.status === 429) continue;
-          const e = await res.json().catch(() => ({}));
-          throw new Error(e.error?.message || `Azure draft ${res.status}`);
-        }
-        const data = await res.json();
-        const img = data.data?.[0];
-        if (!img) throw new Error("No image from Azure draft");
-        if (img.b64_json) return `data:image/png;base64,${img.b64_json}`;
-        if (img.url) return img.url;
-        throw new Error("No image data");
-      } catch (err) {
-        if (err.name === "AbortError") throw err;
-        continue;
-      }
-    }
-    throw new Error("Draft deployments failed");
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 export async function renderLayerDraft(prompt, onProgress, referenceImage, layerType) {
   onProgress?.("Generating layer draft...");
@@ -765,20 +601,17 @@ export async function renderStoryboardOverview(plan, onProgress) {
   }
 }
 
-// ── Character Reference Sheet (11 images) ────────────────────────────────────
+// ── Character Reference Sheet ────────────────────────────────────────────────
 
 const CHARACTER_REFS = [
-  // Turnaround (4 large, square layout)
   { id: "front", label: "Front View", category: "turnaround", angle: "facing directly forward, front view, full body" },
   { id: "3q_left", label: "3/4 Left View", category: "turnaround", angle: "three-quarter view from the left, full body" },
   { id: "isometric", label: "Isometric View", category: "turnaround", angle: "isometric view, slightly elevated angle showing depth, full body" },
   { id: "running", label: "Running", category: "turnaround", angle: "running, mid-stride, shown from the side to show full motion, full body" },
-  // Action poses (4 bottom strip)
   { id: "sitting", label: "Sitting Cross-Legged", category: "pose", angle: "sitting cross-legged on the ground, three-quarter view to show leg position, full body" },
   { id: "walking", label: "Walking", category: "pose", angle: "walking naturally, shown from the side to show stride, full body" },
   { id: "wonder", label: "Looking Up in Wonder", category: "pose", angle: "standing and looking upward with wonder and awe, head tilted back, shown from a low angle looking up at the character, full body" },
   { id: "arms_raised", label: "Arms Raised", category: "pose", angle: "standing with both arms raised above head in joy or celebration, facing forward, full body" },
-  // Resting/emotional (3 right side)
   { id: "sleeping", label: "Lying Down / Sleeping", category: "pose", angle: "lying down on their side, sleeping peacefully, shown from the side to show full horizontal body" },
   { id: "crouching", label: "Crouching", category: "pose", angle: "crouching down examining something on the ground, three-quarter view to show depth of crouch, full body" },
   { id: "hugging", label: "Hugging", category: "pose", angle: "standing with arms wrapped around an object as if hugging it tightly, facing forward to show arm wrap, full body" },
@@ -799,8 +632,6 @@ export async function renderCharacterReferences(characterDesign, styleToken, onP
   const refImages = Array.isArray(referenceImages) ? referenceImages : referenceImages ? [referenceImages] : [];
 
   let finalDesign = characterDesign;
-
-  // Extract features from photos locally, override text description
   let photoFeatures = null;
   if (refImages.length > 0) {
     onProgress?.(`Analyzing ${refImages.length} reference photo${refImages.length > 1 ? "s" : ""}...`);
@@ -837,24 +668,16 @@ export async function renderCharacterReferences(characterDesign, styleToken, onP
 
   onProgress?.("Generating character reference sheet...");
   try {
-    // Try photo-guided edit first (may be blocked by safety filter)
     if (refImages.length > 0) {
       onProgress?.("Attempting photo-guided generation...");
       try {
-        const imageUrl = await azureImageEdit(
-          refImages,
-          prompt,
-          "1024x1024",
-          "medium",
-          0.9
-        );
+        const imageUrl = await azureImageEdit(refImages, prompt, "1024x1024", "medium", 0.9);
         onProgress?.("Character reference sheet ready (photo-guided).");
         return imageUrl;
       } catch (editErr) {
         onProgress?.(`Edit endpoint blocked (${editErr.message.substring(0, 60)}...), using feature-enriched text generation...`);
       }
     }
-    // Text-to-image with photo-derived features baked in
     const imageUrl = await generateImage(prompt, "1024x1024", "medium");
     onProgress?.("Character reference sheet ready.");
     return imageUrl;

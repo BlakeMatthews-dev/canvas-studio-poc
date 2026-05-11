@@ -10,7 +10,8 @@ from pathlib import Path
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from mcp.pdf_composer import compose_interior, compose_cover
+from engine.compositor import composite_scene
+from mcp.pdf_composer import compose_cover, compose_interior
 from mcp.products import ProductSpec
 
 STANDARD_8x8 = ProductSpec(
@@ -83,10 +84,14 @@ def export_interior(payload: dict, output_path: str) -> str:
             page_images.append(decode_base64_image(composite))
         else:
             layers = page.get("layers", [])
-            bg = next((l for l in layers if l.get("type") == "background"), None)
-            if bg and bg.get("image_url"):
-                img_data = decode_base64_image(bg["image_url"])
-                page_images.append(img_data)
+            if layers:
+                # composite all layers server-side via the engine compositor
+                png_data_url = composite_scene(
+                    layers,
+                    page_w=int(product.bleed_width_pt),
+                    page_h=int(product.bleed_height_pt),
+                )
+                page_images.append(decode_base64_image(png_data_url))
             else:
                 blank = io.BytesIO()
                 Image.new(

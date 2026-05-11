@@ -1,29 +1,18 @@
-const LITELLM_URL =
-  import.meta.env.VITE_LITELLM_URL || "/litellm";
-const LITELLM_KEY =
-  import.meta.env.VITE_LITELLM_KEY || "sk-conductor-litellm-2026";
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 const AZURE_KEY = import.meta.env.VITE_AZURE_KEY || "";
 const AZURE_ENDPOINT = import.meta.env.VITE_AZURE_ENDPOINT || "";
 const AZURE_DEPLOYMENT = "gpt-image-2-1";
 
 async function llm(messages, model = "gemini-flash") {
-  const res = await fetch(`${LITELLM_URL}/v1/chat/completions`, {
+  const res = await fetch("/api/llm/chat", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${LITELLM_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 16000,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages, max_tokens: 16000 }),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `LLM ${res.status}`);
+    throw new Error(e.error?.message || e.error || `LLM ${res.status}`);
   }
   const data = await res.json();
   return data.choices?.[0]?.message?.content || "";
@@ -50,7 +39,6 @@ function extractJSON(text) {
       const closes = (candidate.match(/[\]\}]/g) || []).length;
       const missing = opens - closes;
       if (missing > 0 && missing < 20) {
-        // Count which brackets are open
         const stack = [];
         for (const ch of candidate) {
           if (ch === "{" || ch === "[") stack.push(ch);
@@ -60,7 +48,6 @@ function extractJSON(text) {
         for (let i = stack.length - 1; i >= 0; i--) {
           candidate += stack[i] === "{" ? "}" : "]";
         }
-        // Remove trailing partial entries (e.g. incomplete scene objects)
         candidate = candidate.replace(/,\s*\{[^}]*$/, "");
         try {
           return JSON.parse(candidate);
@@ -393,7 +380,6 @@ export async function generateScene(storyId, sceneId, onProgress) {
   if (!scene) throw new Error("Scene not found");
 
   const contract = story.style_contract;
-  const aspect = "16:9";
 
   onProgress?.(`Creating canvas for "${scene.title}"...`);
   const canvas = {

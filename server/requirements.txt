@@ -3,3 +3,23 @@ uvicorn[standard]>=0.34
 psycopg[binary]>=3.2
 psycopg-pool>=3.2
 httpx>=0.28
+pillow>=11.0
+pydantic>=2.0
+reportlab>=4.0
+rembg>=2.0.50
+onnxruntime>=1.17.0
+
+# Diffusers in-process pipeline (IP-Adapter, LoRA, ControlNet)
+# Install torch separately with the right CUDA version first:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.1
+diffusers>=0.27.0
+transformers>=4.38
+accelerate>=0.27
+safetensors>=0.4
+
+# ControlNet preprocessing (openpose, depth estimation)
+controlnet-aux>=0.0.7
+
+# Canny edge detection (ControlNet canny preprocessor)
+opencv-python-headless>=4.8
